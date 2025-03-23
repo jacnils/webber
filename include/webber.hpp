@@ -147,4 +147,6 @@ namespace webber {
     limhamn::http::server::response get_api_try_login(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_try_register(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_try_setup(const limhamn::http::server::request&, database&);
+    limhamn::http::server::response get_api_get_settings(const limhamn::http::server::request&, database&);
+    limhamn::http::server::response get_api_update_settings(const limhamn::http::server::request&, database&);
 }

@@ -1,0 +1,10 @@
+{
+    "default_site": {
+        "title": "My Site",
+        "description": "This is my site.",
+        "author": "John Doe",
+        "site": "https://example.com",
+        "accent": "#007bff",
+        "enable_opengraph": true
+    }
+}

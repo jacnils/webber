@@ -85,6 +85,8 @@ void webber::server_init() { // NOLINT
                   {"/js/main.js", get_script},
                   {"/api/try_login", get_api_try_login},
                   {"/api/try_register", get_api_try_register},
+                  {"/api/get_settings", get_api_get_settings},
+                  {"/api/update_settings", get_api_update_settings},
               };
 
               // if setup needed, return setup page or setup api
@@ -516,7 +518,11 @@ void webber::prepare_wd() {
         of << webber::user_header;
         of.close();
     }
-}
+    if (!check_if_exists(settings.data_directory + "/" + "settings.json")) {
+        std::ofstream of(settings.data_directory + "/" + "settings.json");
+        of << webber::default_settings;
+        of.close();
+    }}
 
 void webber::clean_data() {
     std::cout << "This will delete ALL data in the session, temp and data directories. This could very well be unrecoverable and may cause data loss and breakage. Are you sure you want to continue? More than likely, this is not the solution to your problems. (y/N) ";

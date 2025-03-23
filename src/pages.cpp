@@ -386,3 +386,12 @@ limhamn::http::server::response webber::get_api_try_setup(const limhamn::http::s
         return response;
     }
 }
+
+// TODO: Implement the following functions
+limhamn::http::server::response webber::get_api_get_settings(const limhamn::http::server::request&, database&) {
+   return {};
+}
+
+limhamn::http::server::response webber::get_api_update_settings(const limhamn::http::server::request&, database&) {
+    return {};
+}

@@ -83,10 +83,12 @@ endif()
 # @SETUP_PAGE@ -> contents of prebuilt/setup_page.html
 # @INDEX_JAVASCRIPT@ -> contents of prebuilt/main.js
 # @INDEX_STYLESHEET@ -> contents of prebuilt/main.css
+# @DEFAULT_SETTINGS@ -> contents of prebuilt/default_settings.json
 file(READ "${CMAKE_SOURCE_DIR}/prebuilt/index_page.html" INDEX_PAGE)
 file(READ "${CMAKE_SOURCE_DIR}/prebuilt/setup_page.html" SETUP_PAGE)
 file(READ "${CMAKE_SOURCE_DIR}/prebuilt/main.js" INDEX_JAVASCRIPT)
 file(READ "${CMAKE_SOURCE_DIR}/prebuilt/main.css" INDEX_STYLESHEET)
+file(READ "${CMAKE_SOURCE_DIR}/prebuilt/default_settings.json" DEFAULT_SETTINGS)
 
 set(TEMPLATE_FILE "${CMAKE_SOURCE_DIR}/include/prebuilt.hpp.in")
 file(READ "${TEMPLATE_FILE}" TEMPLATE_CONTENTS)
@@ -94,6 +96,7 @@ string(REPLACE "@INDEX_PAGE@" "${INDEX_PAGE}" TEMPLATE_CONTENTS "${TEMPLATE_CONT
 string(REPLACE "@SETUP_PAGE@" "${SETUP_PAGE}" TEMPLATE_CONTENTS "${TEMPLATE_CONTENTS}")
 string(REPLACE "@INDEX_JAVASCRIPT@" "${INDEX_JAVASCRIPT}" TEMPLATE_CONTENTS "${TEMPLATE_CONTENTS}")
 string(REPLACE "@INDEX_STYLESHEET@" "${INDEX_STYLESHEET}" TEMPLATE_CONTENTS "${TEMPLATE_CONTENTS}")
+string(REPLACE "@DEFAULT_SETTINGS@" "${DEFAULT_SETTINGS}" TEMPLATE_CONTENTS "${TEMPLATE_CONTENTS}")
 
 file(WRITE "${CMAKE_BINARY_DIR}/include/prebuilt.hpp" "${TEMPLATE_CONTENTS}")
 include_directories("${CMAKE_BINARY_DIR}/include")
