@@ -1,0 +1,77 @@
+<!-- webber setup page -->
+<!DOCTYPE html>
+<noscript style="color: red; font-size: 2em; text-align: center;">Please enable JavaScript to use this page.</noscript>
+<html lang="en">
+    <head>
+        <title>Setup</title>
+        <style>
+            body {
+                text-align: center;
+            }
+        </style>
+        <script>
+            function setup() {
+                document.title = "Setup";
+
+                const email = document.createElement("input");
+                email.type = "email";
+                email.placeholder = "Email";
+                document.body.appendChild(email);
+
+                const username = document.createElement("input");
+                username.type = "text";
+                username.placeholder = "Username";
+                document.body.appendChild(username);
+
+                const password = document.createElement("input");
+                password.type = "password";
+                password.placeholder = "Password";
+                document.body.appendChild(password);
+
+                const confirm = document.createElement("input");
+                confirm.type = "password";
+                confirm.placeholder = "Confirm password";
+                document.body.appendChild(confirm);
+
+                const submit = document.createElement("button");
+                submit.textContent = "Submit";
+                submit.onclick = () => {
+                    if (password.value !== confirm.value) {
+                        alert("Passwords do not match.");
+                        return;
+                    }
+
+                    fetch("/api/try_setup", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            email: email.value,
+                            username: username.value,
+                            password: password.value,
+                        })
+                    }).then(response => {
+                        if (response.ok) {
+                            window.location.pathname = "/";
+                        } else {
+                            response.json().then(data => {
+                                console.log(JSON.stringify({
+                                    email: email.value,
+                                    username: username.value,
+                                    password: password.value,
+                                }));
+                                alert(data.error);
+                            });
+                        }
+                    });
+                }
+
+                document.body.appendChild(submit);
+            }
+            document.addEventListener("DOMContentLoaded", setup);
+        </script>
+    </head>
+    <body>
+    </body>
+</html>

@@ -1,0 +1,6 @@
+[submodule "libs/limhamn"]
+	path = libs/limhamn
+	url = https://github.com/jacnils/limhamn
+[submodule "libs/libbcrypt"]
+	path = libs/libbcrypt
+	url = https://github.com/trusch/libbcrypt

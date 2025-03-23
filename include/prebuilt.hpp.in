@@ -1,0 +1,11 @@
+#pragma once
+
+#include <string_view>
+
+namespace webber {
+    static constexpr std::string_view index_page = R"(@INDEX_PAGE@)";
+    static constexpr std::string_view setup_page = R"(@SETUP_PAGE@)";
+    static constexpr std::string_view index_javascript = R"(@INDEX_JAVASCRIPT@)";
+    static constexpr std::string_view index_stylesheet = R"(@INDEX_STYLESHEET@)";
+    static constexpr std::string_view user_header = R"(@USER_HEADER@)";
+}
