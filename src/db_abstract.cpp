@@ -31,8 +31,9 @@ void webber::setup_database(database& database) {
 
     // pages -- the page table
     // id: the url id
+    // location: the location of the page
     // json: json data
-    if (!database.exec("CREATE TABLE IF NOT EXISTS pages (" + primary + ", json TEXT NOT NULL);")) {
+    if (!database.exec("CREATE TABLE IF NOT EXISTS pages (" + primary + ", location TEXT NOT NULL, json TEXT NOT NULL);")) {
         throw std::runtime_error{"Error creating the pages table."};
     }
 
@@ -53,7 +54,7 @@ std::string webber::get_json_from_table(database& db, const std::string& table, 
         throw std::runtime_error{"Table, key, or value is empty."};
     }
 
-    const auto& query = db.query("SELECT json FROM " + table + " WHERE " + key + " = ?;", value);
+    const auto& query = db.query("SELECT json FROM ? WHERE ? = ?;", table, key, value);
     if (query.empty()) {
         throw std::runtime_error{"Query is empty."};
     }
@@ -74,5 +75,5 @@ bool webber::set_json_in_table(database& db, const std::string& table, const std
         return false;
     }
 
-    return db.exec("UPDATE " + table + " SET json = ? WHERE " + key + " = ?;", json, value);
+    return db.exec("UPDATE ? SET json = ? WHERE ? = ?;", table, json, key, value);
 }

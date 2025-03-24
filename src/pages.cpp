@@ -457,3 +457,23 @@ limhamn::http::server::response webber::get_api_update_settings(const limhamn::h
         return response;
     }
 }
+
+limhamn::http::server::response webber::get_api_get_page(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+    return response;
+}
+
+limhamn::http::server::response webber::get_api_update_page(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+    return response;
+}
+
+limhamn::http::server::response webber::get_api_delete_page(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+    return response;
+}
+
+limhamn::http::server::response webber::get_api_create_page(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+    return response;
+}

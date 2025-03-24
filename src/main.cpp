@@ -87,6 +87,10 @@ void webber::server_init() { // NOLINT
                   {"/api/try_register", get_api_try_register},
                   {"/api/get_settings", get_api_get_settings},
                   {"/api/update_settings", get_api_update_settings},
+                  {"/api/get_page", get_api_get_page},
+                  {"/api/create_page", get_api_create_page},
+                  {"/api/delete_page", get_api_delete_page},
+                  {"/api/update_page", get_api_update_page},
               };
 
               // if setup needed, return setup page or setup api
