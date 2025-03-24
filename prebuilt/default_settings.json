@@ -5,6 +5,63 @@
         "author": "John Doe",
         "site": "https://example.com",
         "accent": "#007bff",
+        "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
+        "favicon": "/img/favicon.ico",
         "enable_opengraph": true
+    },
+    "header": {
+        "logo": "/img/logo.png",
+        "light_logo": false,
+        "title": "My Site",
+        "links": [
+            {
+                "name": "Home",
+                "url": "/"
+            },
+            {
+                "name": "About",
+                "url": "/about"
+            },
+            {
+                "name": "Contact",
+                "url": "/contact"
+            },
+            {
+                "name": "Blog",
+                "url": "/blog"
+            },
+            {
+                "name": "Projects",
+                "url": "/projects"
+            },
+            {
+                "name": "Login",
+                "url": "/login",
+                "auth": false,
+                "id": "login"
+            },
+            {
+                "name": "Register",
+                "url": "/register",
+                "auth": false,
+                "id": "register"
+            },
+            {
+                "name": "Log out",
+                "url": "/logout",
+                "auth": true,
+                "id": "logout"
+            },
+            {
+                "name": "Administration",
+                "url": "/admin",
+                "admin": true,
+                "auth": true,
+                "id": "admin"
+            }
+        ]
+    },
+    "footer": {
+        "text": "© 2020 My Site. All rights reserved."
     }
 }

@@ -1,4 +1,5 @@
 #include <webber.hpp>
+#include <prebuilt.hpp>
 #include <limhamn/http/http_server.hpp>
 #include <nlohmann/json.hpp>
 
@@ -388,10 +389,71 @@ limhamn::http::server::response webber::get_api_try_setup(const limhamn::http::s
 }
 
 // TODO: Implement the following functions
-limhamn::http::server::response webber::get_api_get_settings(const limhamn::http::server::request&, database&) {
-   return {};
+limhamn::http::server::response webber::get_api_get_settings(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+
+    try {
+        nlohmann::json file_json = nlohmann::json::parse(open_file(settings.data_directory + "/settings.json"));
+        nlohmann::json default_json = nlohmann::json::parse(default_settings);
+        for (const auto& it : default_json.items()) {
+            if (!file_json.contains(it.key())) {
+                file_json[it.key()] = it.value();
+            }
+        }
+        response.body = file_json.dump();
+        response.http_status = 200;
+    } catch (const std::exception&) {
+        nlohmann::json json;
+        json["error"] = "WEBBER_FAILURE";
+        json["error_str"] = "Failed to get settings.";
+        response.body = json.dump();
+        response.http_status = 400;
+    }
+
+    return response;
 }
 
-limhamn::http::server::response webber::get_api_update_settings(const limhamn::http::server::request&, database&) {
-    return {};
+limhamn::http::server::response webber::get_api_update_settings(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+
+    const auto user = is_logged_in(request, db);
+    if (!user.first || user.second.empty()) {
+        nlohmann::json json;
+        json["error"] = "WEBBER_NOT_LOGGED_IN";
+        json["error_str"] = "Not logged in.";
+        response.body = json.dump();
+        response.http_status = 400;
+        return response;
+    }
+
+    try {
+        nlohmann::json input_json = nlohmann::json::parse(request.body);
+        nlohmann::json file_json = nlohmann::json::parse(open_file(settings.data_directory + "/settings.json"));
+        for (const auto& it : input_json.items()) {
+            if (it.key() == "username" || it.key() == "key") {
+                continue;
+            }
+
+            if (it.key().empty() == false && it.value().empty() == true) {
+                file_json.erase(it.key());
+            }
+
+            file_json[it.key()] = it.value();
+        }
+
+        std::ofstream file(settings.data_directory + "/settings.json", std::ios::trunc);
+        file << file_json.dump();
+        file.close();
+
+        return {
+            .http_status = 204,
+        };
+    } catch (const std::exception&) {
+        nlohmann::json json;
+        json["error"] = "WEBBER_FAILURE";
+        json["error_str"] = "Failed to update settings.";
+        response.body = json.dump();
+        response.http_status = 400;
+        return response;
+    }
 }

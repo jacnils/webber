@@ -450,10 +450,6 @@ void webber::prepare_wd() {
         }
     };
 
-#if WEBBER_DEBUG
-    remove_all_in_directory(settings.data_directory);
-#endif
-
     if (!check_if_exists(webber::settings.session_directory)) {
         webber::logger.write_to_log(limhamn::logger::type::notice, "The session directory does not exist. Creating it.\n");
         if (!create_directory(webber::settings.session_directory)) {
@@ -522,7 +518,8 @@ void webber::prepare_wd() {
         std::ofstream of(settings.data_directory + "/" + "settings.json");
         of << webber::default_settings;
         of.close();
-    }}
+    }
+}
 
 void webber::clean_data() {
     std::cout << "This will delete ALL data in the session, temp and data directories. This could very well be unrecoverable and may cause data loss and breakage. Are you sure you want to continue? More than likely, this is not the solution to your problems. (y/N) ";

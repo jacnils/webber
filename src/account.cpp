@@ -78,6 +78,46 @@ void webber::insert_into_user_table(database& database, const std::string& usern
     }
 }
 
+std::pair<bool, std::string> webber::is_logged_in(const limhamn::http::server::request& request, database& db)
+{
+    try {
+        nlohmann::json json = nlohmann::json::parse(request.body);
+
+        if (!json.contains("username") || !json.at("username").is_string()) {
+            return {false, {}};
+        }
+        if (!json.contains("key") || !json.at("key").is_string()) {
+            return {false, {}};
+        }
+
+        const std::string& username = json.at("username").get<std::string>();
+        const std::string& key = json.at("key").get<std::string>();
+        for (auto& it : db.query("SELECT * FROM users WHERE username = ? AND key = ?;", username, key)) {
+            if (it.empty()) {
+                return {false, {}};
+            }
+            return {true, username};
+        }
+    } catch (const std::exception&) {}
+
+    std::string username{};
+    std::string key{};
+    if (request.session.contains("username")) {
+        username = request.session.at("username");
+    }
+    if (request.session.contains("key")) {
+        key = request.session.at("key");
+    }
+    for (auto& it : db.query("SELECT * FROM users WHERE username = ? AND key = ?;", username, key)) {
+        if (it.empty()) {
+            return {false, {}};
+        }
+        return {true, username};
+    }
+
+    return {false, {}};
+}
+
 std::pair<webber::LoginStatus, std::string> webber::try_login(database& database, const std::string& username, const std::string& password,
         const std::string& ip_address, const std::string& user_agent, limhamn::http::server::response& response) {
 
@@ -154,9 +194,7 @@ webber::AccountCreationStatus webber::make_account(database& database, const std
         return webber::AccountCreationStatus::UsernameTooLong;
     }
 
-    if (email.empty()) {
-        return webber::AccountCreationStatus::InvalidEmail;
-    } else if (email.find('@') == std::string::npos || email.find('.') == std::string::npos) {
+    if (email.empty() || email.find('@') == std::string::npos || email.find('.') == std::string::npos) {
         return webber::AccountCreationStatus::InvalidEmail;
     }
 
