@@ -7,6 +7,5 @@ namespace webber {
     static constexpr std::string_view setup_page = R"DONOTEVERTYPEME(@SETUP_PAGE@)DONOTEVERTYPEME";
     static constexpr std::string_view index_javascript = R"DONOTEVERTYPEME(@INDEX_JAVASCRIPT@)DONOTEVERTYPEME";
     static constexpr std::string_view index_stylesheet = R"DONOTEVERTYPEME(@INDEX_STYLESHEET@)DONOTEVERTYPEME";
-    static constexpr std::string_view user_header = R"DONOTEVERTYPEME(@USER_HEADER@)DONOTEVERTYPEME";
     static constexpr std::string_view default_settings = R"DONOTEVERTYPEME(@DEFAULT_SETTINGS@)DONOTEVERTYPEME";
 }

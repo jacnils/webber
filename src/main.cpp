@@ -509,11 +509,6 @@ void webber::prepare_wd() {
         of << webber::index_javascript;
         of.close();
     }
-    if (!check_if_exists(settings.data_directory + "/" + "header.html")) {
-        std::ofstream of(settings.data_directory + "/" + "header.html");
-        of << webber::user_header;
-        of.close();
-    }
     if (!check_if_exists(settings.data_directory + "/" + "settings.json")) {
         std::ofstream of(settings.data_directory + "/" + "settings.json");
         of << webber::default_settings;
