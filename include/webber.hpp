@@ -91,11 +91,12 @@ namespace webber {
     };
 
     struct FileConstruct {
-        std::string path{};
-        std::string name{};
-        std::string username{};
-        std::string ip_address{};
-        std::string user_agent{};
+        std::string virtual_path{}; // virtual path, used when downloading
+        std::string path{}; // actual path to move from
+        std::string name{}; // file name
+        std::string username{}; // username of the uploader
+        std::string ip_address{}; // ip address of the uploader
+        std::string user_agent{}; // user agent of the uploader
     };
 
     struct RetrievedFile {

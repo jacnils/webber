@@ -39,9 +39,9 @@ void webber::setup_database(database& database) {
 
     // files -- the file table
     // id: the file id
-    // file_id: identifier of the file, used to retrieve the file
+    // file_path: file path, also known as identifier
     // json: the json of the file (including actual path)
-    if (!database.exec("CREATE TABLE IF NOT EXISTS files (" + primary + ", file_id TEXT NOT NULL, json TEXT NOT NULL);")) {
+    if (!database.exec("CREATE TABLE IF NOT EXISTS files (" + primary + ", file_path TEXT NOT NULL, json TEXT NOT NULL);")) {
         throw std::runtime_error{"Error creating the files table."};
     }
 }

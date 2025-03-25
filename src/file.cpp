@@ -25,7 +25,7 @@ std::string webber::upload_file(database& db, const webber::FileConstruct& c) {
     json["downloaders"] = nlohmann::json::array(); /* combine username, ip address, user agent and timestamp */
 
     const auto check_for_dup = [](database& db, const std::string& key) -> bool {
-        for (const auto& it : db.query("SELECT * FROM files WHERE file_id = ?;", key)) {
+        for (const auto& it : db.query("SELECT * FROM files WHERE file_path = ?;", key)) {
             if (it.empty()) {
                 return false;
             }
@@ -36,23 +36,12 @@ std::string webber::upload_file(database& db, const webber::FileConstruct& c) {
         return false;
     };
 
-    // generate a random key
-    std::string key = scrypto::generate_random_string(16);
     std::string file_key = scrypto::generate_random_string(16);
+    std::string key = scrypto::generate_random_string(16);
 
-    int i{0};
-    while (check_for_dup(db, key) || i < 10) {
-        key = scrypto::generate_random_string(16);
-        i++; // prevent infinite loop that could potentially occur if the RNG is bad
-    }
+    std::filesystem::remove(c.path);
+    std::filesystem::remove(webber::settings.data_directory + "/" + key);
 
-    i = 0;
-    while (check_for_dup(db, file_key) || i < 10) {
-        file_key = scrypto::generate_random_string(16);
-        i++;
-    }
-
-    // create directory if it doesn't exist
     std::filesystem::path dir{webber::settings.data_directory + "/" + key};
     if (!std::filesystem::is_directory(dir)) {
         std::filesystem::create_directories(dir);
@@ -71,23 +60,27 @@ std::string webber::upload_file(database& db, const webber::FileConstruct& c) {
         json["sha256"] = scrypto::sha256hash_file(dir);
     }
 
+    if (check_for_dup(db, c.virtual_path)) {
+        throw std::runtime_error{"Duplicate file."};
+    }
+
     // insert into the files table
-    if (!db.exec("INSERT INTO files (file_id, json) VALUES (?, ?);", file_key, json.dump())) {
+    if (!db.exec("INSERT INTO files (file_path, json) VALUES (?, ?);", c.virtual_path, json.dump())) {
         throw std::runtime_error{"Error inserting into the files table."};
     }
 
     return file_key;
 }
 
-bool webber::is_file(database& db, const std::string& file_key) {
+bool webber::is_file(database& db, const std::string& file_path) {
     if (!db.good()) {
         throw std::runtime_error{"Database is not good."};
     }
-    if (file_key.empty()) {
+    if (file_path.empty()) {
         throw std::runtime_error{"File key is empty."};
     }
 
-    for (const auto& it : db.query("SELECT * FROM files WHERE file_id = ?;", file_key)) {
+    for (const auto& it : db.query("SELECT * FROM files WHERE file_path = ?;", file_path)) {
         if (it.empty()) {
             return false;
         }
@@ -99,11 +92,11 @@ bool webber::is_file(database& db, const std::string& file_key) {
 
 }
 
-webber::RetrievedFile webber::download_file(database& db, const webber::UserProperties& prop, const std::string& file_key) {
+webber::RetrievedFile webber::download_file(database& db, const webber::UserProperties& prop, const std::string& file_path) {
     if (!db.good()) {
         throw std::runtime_error{"Database is not good."};
     }
-    if (prop.ip_address.empty() || prop.user_agent.empty() || file_key.empty()) {
+    if (prop.ip_address.empty() || prop.user_agent.empty() || file_path.empty()) {
         throw std::runtime_error{"IP address, user agent, or file key is empty."};
     }
 
@@ -118,7 +111,7 @@ webber::RetrievedFile webber::download_file(database& db, const webber::UserProp
     }
 
     /* select all matching file_key */
-    const auto query = db.query("SELECT * FROM files WHERE file_id = ?;", file_key);
+    const auto query = db.query("SELECT * FROM files WHERE file_path = ?;", file_path);
     if (query.empty()) {
         throw std::runtime_error{"Query is empty."};
     }
@@ -153,7 +146,7 @@ webber::RetrievedFile webber::download_file(database& db, const webber::UserProp
     f.path = json.at("path").get<std::string>();
 
     // reinsert into the files table
-    if (!db.exec("UPDATE files SET json = ? WHERE file_id = ?;", json.dump(), file_key)) {
+    if (!db.exec("UPDATE files SET json = ? WHERE file_path = ?;", json.dump(), file_path)) {
         throw std::runtime_error{"Error updating the files table."};
     }
 

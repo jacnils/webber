@@ -123,32 +123,26 @@ void webber::server_init() { // NOLINT
                   }
               }
 
-              std::string file = request.endpoint;
-              if (file.find("/download/") != std::string::npos) {
-                  std::filesystem::path file_path = file.substr(10); // remove /download/
-                  file_path = file_path.lexically_normal(); // normalize the path
+              if (webber::is_file(*database, request.endpoint)) {
+                  const auto& h = webber::download_file(*database, webber::UserProperties{
+                      .username = request.session.contains("username") ? request.session.at("username") : "",
+                      .ip_address = request.ip_address,
+                      .user_agent = request.user_agent,
+                  }, request.endpoint);
 
-                  if (webber::is_file(*database, file_path.string())) {
-                      const auto& h = webber::download_file(*database, webber::UserProperties{
-                          .username = request.session.contains("username") ? request.session.at("username") : "",
-                          .ip_address = request.ip_address,
-                          .user_agent = request.user_agent,
-                      }, file_path.string());
+                  limhamn::http::server::response response{};
 
-                      limhamn::http::server::response response{};
+                  response.body = open_file(h.path);
+                  response.http_status = 200;
+                  response.content_type = limhamn::http::utils::get_appropriate_content_type(h.name);
 
-                      response.body = open_file(h.path);
-                      response.http_status = 200;
-                      response.content_type = limhamn::http::utils::get_appropriate_content_type(h.name);
-
-                      if (settings.preview_files) {
-                          response.headers.push_back({"Content-Disposition", "inline; filename=\"" + h.name + "\""});
-                      } else {
-                          response.headers.push_back({"Content-Disposition", "attachment; filename=\"" + h.name + "\""});
-                      }
-
-                      return response;
+                  if (settings.preview_files) {
+                      response.headers.push_back({"Content-Disposition", "inline; filename=\"" + h.name + "\""});
+                  } else {
+                      response.headers.push_back({"Content-Disposition", "attachment; filename=\"" + h.name + "\""});
                   }
+
+                  return response;
               }
 
               // TODO: user specified paths
