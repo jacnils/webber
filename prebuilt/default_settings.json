@@ -1,8 +1,12 @@
 {
+    "general": {
+        "site": "My Site"
+    },
     "default_site": {
         "title": "My Site",
         "description": "This is my site.",
         "author": "John Doe",
+        "keywords": "site, my site, example",
         "site": "https://example.com",
         "accent": "#007bff",
         "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
@@ -16,45 +20,45 @@
         "links": [
             {
                 "name": "Home",
-                "url": "/"
+                "path": "/"
             },
             {
                 "name": "About",
-                "url": "/about"
+                "path": "/about"
             },
             {
                 "name": "Contact",
-                "url": "/contact"
+                "path": "/contact"
             },
             {
                 "name": "Blog",
-                "url": "/blog"
+                "path": "/blog"
             },
             {
                 "name": "Projects",
-                "url": "/projects"
+                "path": "/projects"
             },
             {
                 "name": "Login",
-                "url": "/login",
+                "path": "/login",
                 "auth": false,
                 "id": "login"
             },
             {
                 "name": "Register",
-                "url": "/register",
+                "path": "/register",
                 "auth": false,
                 "id": "register"
             },
             {
                 "name": "Log out",
-                "url": "/logout",
+                "path": "/logout",
                 "auth": true,
                 "id": "logout"
             },
             {
                 "name": "Administration",
-                "url": "/admin",
+                "path": "/admin",
                 "admin": true,
                 "auth": true,
                 "id": "admin"

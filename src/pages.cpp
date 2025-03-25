@@ -109,13 +109,7 @@ limhamn::http::server::response webber::get_api_try_register(const limhamn::http
         json["error_str"] = "Password missing.";
         response.body = json.dump();
         return response;
-    }
-
-    const std::string& username = input_json.at("username");
-    const std::string& password = input_json.at("password");
-    std::string email{};
-
-    if (input_json.find("email") == input_json.end() || !input_json.at("email").is_string()) {
+    } else if (input_json.find("email") == input_json.end() || !input_json.at("email").is_string()) {
         response.http_status = 400;
         nlohmann::json json;
         json["error"] = "WEBBER_MISSING_EMAIL";
@@ -124,6 +118,9 @@ limhamn::http::server::response webber::get_api_try_register(const limhamn::http
         return response;
     }
 
+    const std::string& username = input_json.at("username");
+    const std::string& password = input_json.at("password");
+    const std::string& email = input_json.at("email");
     const std::string& ip_address = request.ip_address;
     const std::string& user_agent = request.user_agent;
 
@@ -475,5 +472,35 @@ limhamn::http::server::response webber::get_api_delete_page(const limhamn::http:
 
 limhamn::http::server::response webber::get_api_create_page(const limhamn::http::server::request& request, database& db) {
     limhamn::http::server::response response{};
+    return response;
+}
+
+limhamn::http::server::response webber::get_api_user_exists(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+
+    try {
+        nlohmann::json input_json = nlohmann::json::parse(request.body);
+
+        if (input_json.contains("username") == false || input_json.at("username").is_string() == false) {
+            nlohmann::json json;
+            json["error"] = "WEBBER_MISSING_USERNAME";
+            json["error_str"] = "Username missing.";
+            response.body = json.dump();
+            response.http_status = 400;
+            return response;
+        }
+
+        nlohmann::json json;
+        json["status"] = is_user(db, input_json.at("username").get<std::string>());
+        response.body = json.dump();
+        response.http_status = 200;
+    } catch (const std::exception&) {
+        nlohmann::json json;
+        json["error"] = "WEBBER_FAILURE";
+        json["error_str"] = "Failed to check if user exists.";
+        response.body = json.dump();
+        response.http_status = 400;
+    }
+
     return response;
 }

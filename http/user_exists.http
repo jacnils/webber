@@ -1,0 +1,8 @@
+POST /api/user_exists
+Host: localhost:8081
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "accmgmt@jacobnilsson.com"
+}

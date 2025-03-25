@@ -124,6 +124,7 @@ namespace webber {
     void setup_database(database&);
 
     UserType get_user_type(database&, const std::string&);
+    bool is_user(database&, const std::string&);
     std::pair<LoginStatus, std::string> try_login(database&, const std::string&, const std::string&,
         const std::string&, const std::string&, limhamn::http::server::response&);
     AccountCreationStatus make_account(database&, const std::string&, const std::string&, const std::string&, const std::string&, const std::string&, UserType);
@@ -149,6 +150,7 @@ namespace webber {
     limhamn::http::server::response get_api_try_login(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_try_register(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_try_setup(const limhamn::http::server::request&, database&);
+    limhamn::http::server::response get_api_user_exists(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_get_settings(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_update_settings(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_get_page(const limhamn::http::server::request&, database&);

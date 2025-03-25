@@ -85,6 +85,7 @@ void webber::server_init() { // NOLINT
                   {"/js/main.js", get_script},
                   {"/api/try_login", get_api_try_login},
                   {"/api/try_register", get_api_try_register},
+                  {"/api/user_exists", get_api_user_exists},
                   {"/api/get_settings", get_api_get_settings},
                   {"/api/update_settings", get_api_update_settings},
                   {"/api/get_page", get_api_get_page},

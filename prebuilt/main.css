@@ -19,6 +19,20 @@ body {
     margin: 0;
 }
 
+.floating_window {
+    position: fixed;
+    min-width: 300px;
+    min-height: 100px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 10px;
+    padding: 10px;
+    z-index: 9999;
+    text-align: center;
+    overflow-y: auto;
+}
+
 .top-bar {
     position: fixed;
     top: 0;
@@ -131,74 +145,53 @@ input, select, textarea, button {
     }
 }
 
+/* Dark mode (default) begin */
+body {
+    color: #eee;
+    background-color: #222;
+}
+.top-bar {
+    background-color: #333;
+    color: #eee;
+}
+.nav-links {
+    background-color: #444;
+}
+.nav-links a, .header a {
+    color: #eee;
+}
+.content a {
+    color: #007bff;
+}
+.footer {
+    background-color: #333;
+    color: #eee;
+}
+input, select, textarea, button {
+    border-color: #333;
+    background-color: #333;
+    color: #eee;
+}
+.hljs {
+    background-color: #333;
+    color: #eee;
+}
+
+.floating_window {
+    background-color: #333;
+    color: #eee;
+}
+
+/* Dark mode (default) end */
+
 @media (prefers-color-scheme: dark) {
     .light {
         display: none;
-    }
-    body {
-        color: #eee;
-        background-color: #222;
-    }
-    .top-bar {
-        background-color: #333;
-        color: #eee;
-    }
-    .nav-links {
-        background-color: #444;
-    }
-    .nav-links a, .header a {
-        color: #eee;
-    }
-    .content a {
-        color: #007bff;
-    }
-    .footer {
-        background-color: #333;
-        color: #eee;
-    }
-    input, select, textarea, button {
-        border-color: #333;
-        background-color: #333;
-        color: #eee;
-    }
-    .hljs {
-        background-color: #333;
-        color: #eee;
     }
 }
 
 @media (prefers-color-scheme: light) {
     .dark {
         display: none;
-    }
-    body {
-        color: #333;
-        background-color: #eee;
-    }
-    .top-bar {
-        background-color: #f0f0f0;
-        color: #333;
-    }
-    .nav-links {
-        background-color: #f0f0f0;
-    }
-    .nav-links a, .header a {
-        color: #333;
-    }
-    .content a {
-        color: #007bff;
-    }
-    .footer {
-        background-color: #f0f0f0;
-        color: #333;
-    }
-    input, select, textarea, button {
-        border-color: #f0f0f0;
-        background-color: #f0f0f0;
-        color: #333;
-    }
-    .hljs {
-        background-color: #f0f0f0;
-        color: #333;
     }
 }

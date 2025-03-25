@@ -22,6 +22,18 @@ webber::UserType webber::get_user_type(database& database, const std::string& us
     return webber::UserType::Undefined;
 }
 
+bool webber::is_user(database& database, const std::string& username) {
+    for (const auto& it : database.query("SELECT * FROM users WHERE username = ?;", username)) {
+        if (it.empty()) {
+            return !get_username_from_email(database, username).empty();
+        }
+
+        return true;
+    }
+
+    return !get_username_from_email(database, username).empty();
+}
+
 std::string webber::get_email_from_username(database& database, const std::string& username) {
     for (const auto& it : database.query("SELECT email FROM users WHERE username = ?;", username)) {
         if (it.empty()) {
