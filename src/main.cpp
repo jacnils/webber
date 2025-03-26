@@ -92,6 +92,8 @@ void webber::server_init() { // NOLINT
                   {"/api/create_page", get_api_create_page},
                   {"/api/delete_page", get_api_delete_page},
                   {"/api/update_page", get_api_update_page},
+                  {"/api/upload_file", get_api_upload_file},
+                  {"/api/delete_file", get_api_delete_file},
               };
 
               // if setup needed, return setup page or setup api
@@ -484,8 +486,10 @@ void webber::prepare_wd() {
         webber::logger.write_to_log(limhamn::logger::type::notice, "The database file directory was created.\n");
     }
 
+#ifndef WEBBER_DEBUG
     remove_all_in_directory(webber::settings.temp_directory);
     remove_all_in_directory(webber::settings.session_directory);
+#endif
 
     // some initial files
     if (!check_if_exists(settings.data_directory + "/" + "index.html")) {

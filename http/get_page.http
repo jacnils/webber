@@ -1,0 +1,10 @@
+POST /api/get_page
+Host: localhost:8081
+Accept: application/json
+Content-Type: application/json
+
+{
+  "username": "jacob",
+  "key": "fc58beed21079c402beac9833de2c1bb93d3f5e6d69dbcadbe5871d948825042",
+  "page": "/test/mypages"
+}

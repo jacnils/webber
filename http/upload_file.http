@@ -1,0 +1,20 @@
+POST /api/upload_file
+Host: localhost:8081
+Accept: application/json
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="json"
+Content-Type: application/json
+
+{
+  "username": "jacob",
+  "key": "fc58beed21079c402beac9833de2c1bb93d3f5e6d69dbcadbe5871d948825042",
+  "endpoint": "/test/myfile"
+}
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="example.txt"
+Content-Type: text/plain
+
+<file content here>
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

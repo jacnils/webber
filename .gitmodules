@@ -4,3 +4,6 @@
 [submodule "libs/libbcrypt"]
 	path = libs/libbcrypt
 	url = https://github.com/trusch/libbcrypt
+[submodule "libs/maddy"]
+	path = libs/maddy
+	url = https://github.com/progsource/maddy

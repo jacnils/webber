@@ -422,6 +422,14 @@ limhamn::http::server::response webber::get_api_update_settings(const limhamn::h
         response.http_status = 400;
         return response;
     }
+    if (get_user_type(db, user.second) != UserType::Administrator) {
+        nlohmann::json json;
+        json["error"] = "WEBBER_NOT_ADMIN";
+        json["error_str"] = "Not an administrator.";
+        response.body = json.dump();
+        response.http_status = 400;
+        return response;
+    }
 
     try {
         nlohmann::json input_json = nlohmann::json::parse(request.body);
@@ -457,22 +465,329 @@ limhamn::http::server::response webber::get_api_update_settings(const limhamn::h
 
 limhamn::http::server::response webber::get_api_get_page(const limhamn::http::server::request& request, database& db) {
     limhamn::http::server::response response{};
-    return response;
+
+    bool json_requested = false;
+
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(request.body);
+    } catch (const std::exception&) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_INVALID_JSON";
+        return_json["error_str"] = "Invalid JSON.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    // allows us to write, for example, a great admin panel and access tons of information from JS
+    if (json.contains("json") && json.at("json").is_boolean()) {
+        json_requested = json.at("json").get<bool>();
+    }
+
+    const auto stat = is_logged_in(request, db);
+    bool is_admin = false;
+    if (json_requested) {
+        if (!stat.first || stat.second.empty()) {
+            response.http_status = 400;
+            nlohmann::json json;
+            json["error"] = "WEBBER_INVALID_CREDS";
+            json["error_str"] = "Invalid credentials.";
+            response.body = json.dump();
+            return response;
+        }
+
+        is_admin = get_user_type(db, stat.second) == UserType::Administrator;
+    }
+
+    if (json.contains("page") == false || json.at("page").is_string() == false) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_MISSING_PAGE";
+        return_json["error_str"] = "Page missing.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    const std::string page = json.at("page").get<std::string>();
+    if (!is_page(db, page)) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_PAGE_NOT_FOUND";
+        return_json["error_str"] = "Page not found.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    try {
+        const RetrievedPage ret = download_page(db,
+            { .ip_address = request.ip_address, .user_agent = request.user_agent, .username = stat.second},
+            page, (json_requested && is_admin));
+
+        if (ret.json.empty() == false) {
+            response.content_type = "application/json";
+            response.http_status = 200;
+            response.body = ret.json;
+
+            return response;
+        } else {
+            response.content_type = "application/json";
+            response.http_status = 200;
+            nlohmann::json response_json;
+
+            if (!ret.input_content.empty()) response_json["input_content"] = ret.input_content;
+            if (!ret.output_content.empty()) response_json["output_content"] = ret.output_content;
+            if (!ret.input_content_type.empty()) response_json["input_content_type"] = ret.input_content_type;
+            if (!ret.output_content_type.empty()) response_json["output_content_type"] = ret.output_content_type;
+
+            response.body = response_json.dump();
+            return response;
+        }
+    } catch (const std::exception&) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_FAILURE";
+        return_json["error_str"] = "Failed to get page.";
+        response.body = return_json.dump();
+        return response;
+    }
 }
 
 limhamn::http::server::response webber::get_api_update_page(const limhamn::http::server::request& request, database& db) {
     limhamn::http::server::response response{};
-    return response;
+
+    const auto stat = is_logged_in(request, db);
+    if (!stat.first || stat.second.empty()) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_INVALID_CREDS";
+        json["error_str"] = "Invalid credentials.";
+        response.body = json.dump();
+        return response;
+    }
+    if (get_user_type(db, stat.second) != UserType::Administrator) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_NOT_ADMIN";
+        json["error_str"] = "Not an administrator.";
+        response.body = json.dump();
+        return response;
+    }
+
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(request.body);
+    } catch (const std::exception&) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_INVALID_JSON";
+        return_json["error_str"] = "Invalid JSON.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    if (json.contains("page") == false || json.at("page").is_string() == false) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_MISSING_PAGE";
+        return_json["error_str"] = "Page missing.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    const std::string page = json.at("page").get<std::string>();
+
+    if (!is_page(db, page)) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_PAGE_NOT_FOUND";
+        return_json["error_str"] = "Page not found.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    PageConstruct c;
+    c.virtual_path = page;
+    c.ip_address = request.ip_address;
+    c.user_agent = request.user_agent;
+    c.username = stat.second;
+    if (json.contains("markdown_content") && json.at("markdown_content").is_string() == true) {
+        c.markdown_content = json.at("markdown_content").get<std::string>();
+    } else if (json.contains("html_content") && json.at("html_content").is_string() == true) {
+        c.html_content = json.at("html_content").get<std::string>();
+    } else {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_MISSING_CONTENT";
+        return_json["error_str"] = "Content missing.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    try {
+        update_page(db, c);
+        response.http_status = 204;
+        return response;
+    } catch (const std::exception&) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_FAILURE";
+        return_json["error_str"] = "Failed to get page.";
+        response.body = return_json.dump();
+        return response;
+    }
 }
 
 limhamn::http::server::response webber::get_api_delete_page(const limhamn::http::server::request& request, database& db) {
     limhamn::http::server::response response{};
-    return response;
+
+    const auto stat = is_logged_in(request, db);
+    if (!stat.first || stat.second.empty()) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_INVALID_CREDS";
+        json["error_str"] = "Invalid credentials.";
+        response.body = json.dump();
+        return response;
+    }
+    if (get_user_type(db, stat.second) != UserType::Administrator) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_NOT_ADMIN";
+        json["error_str"] = "Not an administrator.";
+        response.body = json.dump();
+        return response;
+    }
+
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(request.body);
+    } catch (const std::exception&) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_INVALID_JSON";
+        return_json["error_str"] = "Invalid JSON.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    if (json.contains("page") == false || json.at("page").is_string() == false) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_MISSING_PAGE";
+        return_json["error_str"] = "Page missing.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    const std::string page = json.at("page").get<std::string>();
+
+    if (!is_page(db, page)) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_PAGE_NOT_FOUND";
+        return_json["error_str"] = "Page not found.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    try {
+        remove_page(db, page);
+        response.http_status = 204;
+        return response;
+    } catch (const std::exception&) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_FAILURE";
+        return_json["error_str"] = "Failed to delete page.";
+        response.body = return_json.dump();
+        return response;
+    }
 }
 
 limhamn::http::server::response webber::get_api_create_page(const limhamn::http::server::request& request, database& db) {
     limhamn::http::server::response response{};
-    return response;
+
+    const auto stat = is_logged_in(request, db);
+    if (!stat.first || stat.second.empty()) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_INVALID_CREDS";
+        json["error_str"] = "Invalid credentials.";
+        response.body = json.dump();
+        return response;
+    }
+    if (get_user_type(db, stat.second) != UserType::Administrator) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_NOT_ADMIN";
+        json["error_str"] = "Not an administrator.";
+        response.body = json.dump();
+        return response;
+    }
+
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(request.body);
+    } catch (const std::exception&) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_INVALID_JSON";
+        return_json["error_str"] = "Invalid JSON.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    if (json.contains("page") == false || json.at("page").is_string() == false) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_MISSING_PAGE";
+        return_json["error_str"] = "Page missing.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    const std::string page = json.at("page").get<std::string>();
+
+    if (is_page(db, page)) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_PAGE_FOUND";
+        return_json["error_str"] = "Page already exists.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    PageConstruct c;
+    c.virtual_path = page;
+    c.ip_address = request.ip_address;
+    c.user_agent = request.user_agent;
+    c.username = stat.second;
+    if (json.contains("markdown_content") && json.at("markdown_content").is_string() == true) {
+        c.markdown_content = json.at("markdown_content").get<std::string>();
+    } else if (json.contains("html_content") && json.at("html_content").is_string() == true) {
+        c.html_content = json.at("html_content").get<std::string>();
+    } else {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_MISSING_CONTENT";
+        return_json["error_str"] = "Content missing.";
+        response.body = return_json.dump();
+        return response;
+    }
+
+    try {
+        upload_page(db, c);
+        response.http_status = 204;
+        return response;
+    } catch (const std::exception&) {
+        nlohmann::json return_json;
+        response.http_status = 400;
+        return_json["error"] = "WEBBER_FAILURE";
+        return_json["error_str"] = "Failed to get page.";
+        response.body = return_json.dump();
+        return response;
+    }
 }
 
 limhamn::http::server::response webber::get_api_user_exists(const limhamn::http::server::request& request, database& db) {
@@ -501,6 +816,121 @@ limhamn::http::server::response webber::get_api_user_exists(const limhamn::http:
         response.body = json.dump();
         response.http_status = 400;
     }
+
+    return response;
+}
+
+limhamn::http::server::response webber::get_api_upload_file(const limhamn::http::server::request& request, database& database) {
+    limhamn::http::server::response response{};
+
+    if (request.body.empty()) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_NO_BODY";
+        json["error_str"] = "No body.";
+        response.body = json.dump();
+        return response;
+    }
+
+    if (request.method != "POST") {
+        response.http_status = 405;
+        nlohmann::json json;
+        json["error"] = "WEBBER_METHOD_NOT_ALLOWED";
+        json["error_str"] = "Method not allowed.";
+        response.body = json.dump();
+        return response;
+    }
+
+    const UploadStatus status = upload_file(request, database);
+
+    if (status == UploadStatus::Success) {
+        response.http_status = 204;
+        return response;
+    } else {
+        static const std::unordered_map<UploadStatus, std::pair<std::string, std::string>> status_map{
+            {UploadStatus::NoFile, {"WEBBER_NO_FILE", "No file was specified."}},
+            {UploadStatus::Failure, {"WEBBER_FAILURE", "Failed to upload the file."}},
+            {UploadStatus::TooLarge, {"WEBBER_TOO_LARGE", "The file was too large."}},
+            {UploadStatus::InvalidCreds, {"WEBBER_INVALID_CREDS", "Invalid credentials."}},
+        };
+
+        nlohmann::json json;
+        if (status_map.contains(status)) {
+            json["error"] = status_map.at(status).first;
+            json["error_str"] = status_map.at(status).second;
+        } else {
+            json["error"] = "WEBBER_UNKNOWN_ERROR";
+            json["error_str"] = "Unknown error.";
+        }
+
+        response.content_type = "application/json";
+        response.http_status = 400;
+        response.body = json.dump();
+    }
+
+    return response;
+}
+
+limhamn::http::server::response webber::get_api_delete_file(const limhamn::http::server::request& request, database& database) {
+    limhamn::http::server::response response{};
+
+    if (request.body.empty()) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_NO_BODY";
+        json["error_str"] = "No body.";
+        response.body = json.dump();
+        return response;
+    }
+
+    const auto stat = is_logged_in(request, database);
+    if (!stat.first) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_INVALID_CREDS";
+        json["error_str"] = "Invalid credentials.";
+        response.body = json.dump();
+        return response;
+    }
+    if (get_user_type(database, stat.second) != UserType::Administrator) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_INVALID_CREDS";
+        json["error_str"] = "Invalid credentials.";
+        response.body = json.dump();
+        return response;
+    }
+
+    nlohmann::json input_json;
+    try {
+        input_json = nlohmann::json::parse(request.body);
+    } catch (const std::exception&) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_INVALID_JSON";
+        json["error_str"] = "Invalid JSON.";
+        response.body = json.dump();
+        return response;
+    }
+
+    if (input_json.contains("endpoint") == false || input_json.at("endpoint").is_string() == false) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_NO_ENDPOINT";
+        json["error_str"] = "No endpoint.";
+        response.body = json.dump();
+        return response;
+    }
+    if (!is_file(database, input_json.at("endpoint").get<std::string>())) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_NO_FILE";
+        json["error_str"] = "Not a file.";
+        response.body = json.dump();
+        return response;
+    }
+
+    remove_file(database, input_json.at("endpoint").get<std::string>());
 
     return response;
 }

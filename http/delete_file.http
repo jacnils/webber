@@ -1,0 +1,10 @@
+POST /api/delete_file
+Host: localhost:8081
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "jacob",
+  "key": "286462d0440fd8202e742791e5bd03d26963140a016471836ea1f03bbd9f50dd",
+  "endpoint": "/test/myfile"
+}

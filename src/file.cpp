@@ -39,7 +39,6 @@ std::string webber::upload_file(database& db, const webber::FileConstruct& c) {
     std::string file_key = scrypto::generate_random_string(16);
     std::string key = scrypto::generate_random_string(16);
 
-    std::filesystem::remove(c.path);
     std::filesystem::remove(webber::settings.data_directory + "/" + key);
 
     std::filesystem::path dir{webber::settings.data_directory + "/" + key};
@@ -89,7 +88,34 @@ bool webber::is_file(database& db, const std::string& file_path) {
     }
 
     return false;
+}
 
+void webber::remove_file(database& db, const std::string& file_path) {
+    if (!db.good()) {
+        throw std::runtime_error{"Database is not good."};
+    }
+    if (file_path.empty()) {
+        throw std::runtime_error{"File path is empty."};
+    }
+
+    const auto query = db.query("SELECT * FROM files WHERE file_path = ?;", file_path);
+    if (query.empty() || !query.at(0).contains("json")) {
+        throw std::runtime_error{"Query is empty or JSON not found."};
+    }
+
+    const auto json = nlohmann::json::parse(query.at(0).at("json"));
+    if (json.contains("path") && json.at("path").is_string()) {
+        std::filesystem::remove(json.at("path").get<std::string>());
+    }
+
+    if (db.exec("DELETE FROM files WHERE file_path = ?;", file_path) == false) {
+        throw std::runtime_error{"Error deleting from the files table."};
+    }
+}
+
+void webber::update_file(database& db, const std::string& file_path, const FileConstruct& c) {
+    remove_file(db, file_path);
+    upload_file(db, c);
 }
 
 webber::RetrievedFile webber::download_file(database& db, const webber::UserProperties& prop, const std::string& file_path) {

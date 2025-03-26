@@ -646,7 +646,7 @@ function e404(data) {
     win.appendChild(paragraph);
 }
 
-function load_page(path, data) {
+async function load_page(path, data) {
     hide_all_windows();
     if (path === "/login" && get_cookie('username') === null) {
         login(data);
@@ -660,14 +660,56 @@ function load_page(path, data) {
     } else if (path === "/admin" && get_cookie('user_type') == 1) {
         admin(data);
         return;
-    } else if (path == "/") {
-        return; // no page to load
     }
 
-    // assume standard page
-    // no?
-    // 404
-    return e404(data);
+    async function fetch_page(path) {
+        const api = "/api/get_page";
+        const send = { page: path };
+
+        try {
+            const response = await fetch(api, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(send),
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const json = await response.json();
+
+            if (json.error_str) {
+                console.error('Error from server:', json.error_str);
+                return undefined;
+            }
+
+            if (json.output_content === undefined) {
+                console.error('output_content is undefined');
+                return undefined;
+            }
+
+            if (json.output_content_type !== 'html') {
+                throw new Error('Invalid content type: ' + json.output_content_type);
+            }
+
+            return json.output_content;
+        } catch (error) {
+            console.error('Fetch error:', error);
+            return undefined;
+        }
+    }
+
+    const content = await fetch_page(path);
+    if (content !== undefined && content !== null) {
+        const div = document.getElementById('content');
+        div.innerHTML += content;
+        return;
+    } else {
+        // no?
+        // 404
+        return e404(data);
+    }
 }
 
 function append_footer(data) {
@@ -683,48 +725,6 @@ function append_footer(data) {
 }
 
 function append_header(data) {
-    const scripts = () => {
-        const footer = document.querySelector('footer');
-        const body = document.body;
-        const nav_bar = document.querySelector('.top-bar');
-
-        if (document.body.scrollHeight <= window.innerHeight) {
-            footer.classList.add('visible');
-        }
-
-        window.addEventListener('scroll', function () {
-            const topBar = document.getElementById('topBar');
-            const footer = document.getElementById('footer');
-
-            if (window.scrollY > 50) {
-                topBar.classList.add('hidden');
-            } else {
-                topBar.classList.remove('hidden');
-            }
-
-            if (window.scrollY + window.innerHeight >= document.body.scrollHeight - 50) {
-                footer.classList.add('visible');
-            } else {
-                footer.classList.remove('visible');
-            }
-        });
-
-        function set_padding() {
-            const fh = footer.offsetHeight;
-            body.style.paddingBottom = `${fh}px`;
-        }
-
-        function set_nav_bar_padding() {
-            const nh = nav_bar.offsetHeight;
-            body.style.paddingTop = `${nh}px`;
-        }
-
-        set_padding();
-        set_nav_bar_padding();
-        window.addEventListener('resize', set_padding);
-        window.addEventListener('resize', set_nav_bar_padding);
-    }
-
     const div = document.createElement('div');
     div.id = 'topBar';
     div.classList.add('top-bar');
@@ -812,8 +812,6 @@ function append_header(data) {
     }
 
     document.body.appendChild(div);
-
-    scripts();
 }
 
 function set_defaults(data) {
@@ -877,15 +875,60 @@ function set_defaults(data) {
     document.head.appendChild(css);
 }
 
+window.addEventListener('load', function() {
+    const footer = document.querySelector('footer');
+    const body = document.body;
+    const nav_bar = document.querySelector('.top-bar');
+
+    if (document.body.scrollHeight <= window.innerHeight && footer) {
+        footer.classList.add('visible');
+    }
+
+    function set_padding() {
+        const fh = footer.offsetHeight;
+        body.style.paddingBottom = `${fh}px`;
+    }
+
+    function set_nav_bar_padding() {
+        const nh = nav_bar.offsetHeight;
+        body.style.paddingTop = `${nh}px`;
+    }
+
+    set_padding();
+    set_nav_bar_padding();
+    window.addEventListener('resize', set_padding);
+    window.addEventListener('resize', set_nav_bar_padding);
+
+    window.addEventListener('scroll', function () {
+        const topBar = document.getElementById('topBar');
+        const footer = document.getElementById('footer');
+
+        if (window.scrollY > 50) {
+            topBar.classList.add('hidden');
+        } else {
+            topBar.classList.remove('hidden');
+        }
+
+        if (window.scrollY + window.innerHeight >= document.body.scrollHeight - 50) {
+            footer.classList.add('visible');
+        } else {
+            footer.classList.remove('visible');
+        }
+    });
+});
+
 function main(data) {
     set_defaults(data);
     append_footer(data);
     append_header(data);
 
     const div = document.createElement('div');
+    div.classList = 'content';
     div.id = 'content';
 
     document.body.appendChild(div);
+
+    load_page(get_path(), data);
 }
 
 document.addEventListener('DOMContentLoaded', function() {

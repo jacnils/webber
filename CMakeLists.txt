@@ -11,10 +11,12 @@ set(WEBBER_ENABLE_POSTGRESQL ON)
 set(PROJECT_SOURCE_FILES
         src/main.cpp
         src/db_abstract.cpp
+        src/page.cpp
         src/pages.cpp
         src/scrypto.cpp
         src/account.cpp
         src/file.cpp
+        src/upload.cpp
 )
 
 include_directories(include)

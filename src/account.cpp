@@ -90,10 +90,24 @@ void webber::insert_into_user_table(database& database, const std::string& usern
     }
 }
 
-std::pair<bool, std::string> webber::is_logged_in(const limhamn::http::server::request& request, database& db)
-{
+std::pair<bool, std::string> webber::is_logged_in(const limhamn::http::server::request& request, database& db, const std::string& _json ) {
+    std::string username{};
+    std::string key{};
+    if (request.session.contains("username")) {
+        username = request.session.at("username");
+    }
+    if (request.session.contains("key")) {
+        key = request.session.at("key");
+    }
+    for (auto& it : db.query("SELECT * FROM users WHERE username = ? AND key = ?;", username, key)) {
+        if (it.empty()) {
+            return {false, {}};
+        }
+        return {true, username};
+    }
+
     try {
-        nlohmann::json json = nlohmann::json::parse(request.body);
+        nlohmann::json json = nlohmann::json::parse(_json.empty() ? request.body : _json);
 
         if (!json.contains("username") || !json.at("username").is_string()) {
             return {false, {}};
@@ -111,21 +125,6 @@ std::pair<bool, std::string> webber::is_logged_in(const limhamn::http::server::r
             return {true, username};
         }
     } catch (const std::exception&) {}
-
-    std::string username{};
-    std::string key{};
-    if (request.session.contains("username")) {
-        username = request.session.at("username");
-    }
-    if (request.session.contains("key")) {
-        key = request.session.at("key");
-    }
-    for (auto& it : db.query("SELECT * FROM users WHERE username = ? AND key = ?;", username, key)) {
-        if (it.empty()) {
-            return {false, {}};
-        }
-        return {true, username};
-    }
 
     return {false, {}};
 }

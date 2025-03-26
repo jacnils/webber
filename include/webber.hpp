@@ -90,6 +90,14 @@ namespace webber {
         Banned,
     };
 
+    enum class UploadStatus {
+        Success,
+        Failure,
+        InvalidCreds,
+        NoFile,
+        TooLarge,
+    };
+
     struct FileConstruct {
         std::string virtual_path{}; // virtual path, used when downloading
         std::string path{}; // actual path to move from
@@ -97,6 +105,23 @@ namespace webber {
         std::string username{}; // username of the uploader
         std::string ip_address{}; // ip address of the uploader
         std::string user_agent{}; // user agent of the uploader
+    };
+
+    struct PageConstruct {
+        std::string virtual_path{};
+        std::string markdown_content{};
+        std::string html_content{};
+        std::string username{};
+        std::string ip_address{};
+        std::string user_agent{};
+    };
+
+    struct RetrievedPage {
+        std::string input_content{};
+        std::string output_content{};
+        std::string input_content_type{};
+        std::string output_content_type{};
+        std::string json{}; // only if requested and user is admin
     };
 
     struct RetrievedFile {
@@ -126,9 +151,12 @@ namespace webber {
 
     UserType get_user_type(database&, const std::string&);
     bool is_user(database&, const std::string&);
+    void remove_file(database&, const std::string&);
+    void update_file(database&, const std::string&, const FileConstruct&);
     std::pair<LoginStatus, std::string> try_login(database&, const std::string&, const std::string&,
         const std::string&, const std::string&, limhamn::http::server::response&);
     AccountCreationStatus make_account(database&, const std::string&, const std::string&, const std::string&, const std::string&, const std::string&, UserType);
+    UploadStatus upload_file(const limhamn::http::server::request&, database&);
     std::string get_email_from_username(database&, const std::string&);
     std::string get_username_from_email(database&, const std::string&);
     void insert_into_user_table(database&, const std::string&, const std::string&,
@@ -142,7 +170,13 @@ namespace webber {
     RetrievedFile download_file(database&, const UserProperties&, const std::string&);
     std::string upload_file(database&, const FileConstruct&);
 
-    std::pair<bool, std::string> is_logged_in(const limhamn::http::server::request&, database&);
+    bool is_page(database&, const std::string&);
+    RetrievedPage download_page(database&, const UserProperties&, const std::string&, bool = false);
+    void upload_page(database&, const PageConstruct&);
+    void remove_page(database&, const std::string&);
+    void update_page(database&, const PageConstruct&);
+
+    std::pair<bool, std::string> is_logged_in(const limhamn::http::server::request&, database&, const std::string& = "");
 
     limhamn::http::server::response get_stylesheet(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_script(const limhamn::http::server::request&, database&);
@@ -158,4 +192,6 @@ namespace webber {
     limhamn::http::server::response get_api_create_page(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_delete_page(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_update_page(const limhamn::http::server::request&, database&);
+    limhamn::http::server::response get_api_upload_file(const limhamn::http::server::request&, database&);
+    limhamn::http::server::response get_api_delete_file(const limhamn::http::server::request&, database&);
 }
