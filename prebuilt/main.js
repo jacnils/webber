@@ -178,10 +178,7 @@ function create_window(id, prop = new WindowProperties()) {
         content.appendChild(close);
     }
 
-    const content_div = document.getElementById('content');
-    if (content_div) {
-        content_div.appendChild(content);
-    }
+    document.body.appendChild(content);
 
     return content;
 }
@@ -386,7 +383,7 @@ function register(data, error = "") {
         }
 
 
-        fetch("/api/try_register", {
+        fetch(api, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -625,7 +622,604 @@ function register(data, error = "") {
     username_prompt();
 }
 
+async function delete_page(data, page) {
+    const api = "/api/delete_page";
+    const send = { page: page };
+
+    try {
+        const response = await fetch(api, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(send),
+        });
+
+        if (response.status === 204) {
+            page_manage(data);
+            return;
+        }
+
+        const json = await response.json();
+
+        if (json.error_str) {
+            console.error('Error:', json.error_str);
+            return;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function delete_page_window(data, pages) {
+    const win = create_window('delete-window');
+
+    const title = document.createElement('h1');
+    title.id = 'delete-title';
+    title.classList = 'delete-title';
+    title.innerText = 'Delete page';
+
+    const paragraph = document.createElement('p');
+    paragraph.id = 'delete-paragraph';
+    paragraph.classList = 'delete-paragraph';
+    paragraph.innerText = 'Are you sure you want to delete the following page(s)?';
+
+    const list = document.createElement('ul');
+    list.id = 'delete-list';
+    list.classList = 'delete-list';
+    for (const page of pages) {
+        const item = document.createElement('li');
+        item.innerText = page;
+        list.appendChild(item);
+    }
+
+    const button = document.createElement('button');
+    button.id = 'delete-button';
+    button.innerText = 'Delete';
+    button.onclick = async () => {
+        for (const page of pages) {
+            await delete_page(data, page);
+        }
+
+        page_manage(data);
+    }
+
+    const cancel = document.createElement('button');
+    cancel.id = 'delete-cancel';
+    cancel.innerText = 'Cancel';
+    cancel.onclick = () => {
+        if (pages.length === 1) {
+            manage_page(data, pages[0]);
+        } else {
+            page_manage(data);
+        }
+    }
+
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(list);
+    win.appendChild(button);
+    win.appendChild(cancel);
+}
+
+function spawn_editor(input_title, input_md, on_save, on_cancel) {
+    let last_saved = 0;
+    const win = create_window('editor-window');
+
+    const title = document.createElement('h1');
+    title.id = 'editor-title';
+    title.classList = 'editor-title';
+    title.innerText = input_title;
+
+    const textarea = document.createElement('textarea');
+    textarea.id = 'editor-textarea';
+    textarea.classList = 'editor-textarea';
+    textarea.style.minWidth = '600px';
+    textarea.style.minHeight = '300px';
+    textarea.value = input_md;
+
+    const cancel = document.createElement('button');
+    cancel.id = 'editor-cancel';
+    cancel.innerText = last_saved == 0 ? 'Cancel' : 'Finish';
+    cancel.onclick = () => {
+        if (last_saved == 0) {
+            if (textarea.value !== input_md) {
+                const text = textarea.value;
+                const new_win = create_window('confirm-window', {remove_existing: false});
+                const title = document.createElement('h1');
+                title.id = 'confirm-title';
+                title.classList = 'confirm-title';
+                title.innerText = 'Unsaved changes';
+                const paragraph = document.createElement('p');
+                paragraph.id = 'confirm-paragraph';
+                paragraph.classList = 'confirm-paragraph';
+                paragraph.innerText = 'You have unsaved changes. Are you sure you want to cancel?';
+                const confirm = document.createElement('button');
+                confirm.id = 'confirm-confirm';
+                confirm.innerText = 'Yes';
+                confirm.onclick = () => {
+                    new_win.style.display = 'none';
+                    on_cancel();
+                }
+                const no = document.createElement('button');
+                no.id = 'confirm-no';
+                no.innerText = 'No';
+                no.onclick = () => {
+                    editor(title, text, on_save, on_cancel);
+                }
+
+                new_win.appendChild(title);
+                new_win.appendChild(paragraph);
+                new_win.appendChild(no);
+                new_win.appendChild(confirm);
+            }
+        }
+
+        on_cancel();
+    }
+
+    const save = document.createElement('button');
+    save.id = 'editor-save';
+    save.innerText = 'Save';
+    save.onclick = () => {
+        last_saved = Date.now();
+        on_save(textarea.value);
+    }
+
+    win.appendChild(textarea);
+    if (last_saved != 0) {
+        const last_saved_text = document.createElement('p');
+        last_saved_text.id = 'editor-last-saved';
+        last_saved_text.classList = 'editor-last-saved';
+        last_saved_text.innerText = 'Last saved ' + last_saved;
+        win.appendChild(last_saved_text);
+    }
+    win.appendChild(document.createElement('br'));
+    win.appendChild(document.createElement('br'));
+    win.appendChild(save);
+    win.appendChild(cancel);
+}
+
+function edit_page_window(data, page) {
+    async function save_page(page, content) {
+        const api = "/api/update_page";
+        const send = { page: page, markdown_content: content };
+
+        try {
+            const response = await fetch(api, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(send),
+            });
+
+            if (response.status === 204) {
+                return;
+            }
+
+            const json = await response.json();
+
+            if (json.error_str) {
+                console.error('Error:', json.error_str);
+                return;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    async function get_page(page) {
+        const api = "/api/get_page";
+        const send = { page: page };
+
+        try {
+            const response = await fetch(api, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(send),
+            });
+
+            const json = await response.json();
+
+            if (json.error_str) {
+                console.error('Error:', json.error_str);
+                return;
+            }
+
+            return json;
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    get_page(page).then((json) => {
+        spawn_editor('Edit page ' + page, json.input_content, (content) => {
+            save_page(page, content);
+        }, () => {
+            manage_page(data, page);
+        });
+    });
+}
+
+function create_page_editor(data, page) {
+    async function save_page(page, content) {
+        const api = "/api/create_page";
+        const send = { page: page, markdown_content: content };
+
+        try {
+            const response = await fetch(api, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(send),
+            });
+
+            if (response.status === 204) {
+                manage_page(data, page);
+                return;
+            }
+
+            const json = await response.json();
+
+            if (json.error_str) {
+                console.error('Error:', json.error_str);
+                return;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    const input_md = '# ' + page + '\n\nThis is a new page. You can fill me with Markdown.';
+    spawn_editor('Create new page', input_md, (content) => {
+        save_page(page, content);
+    }, () => {
+        page_manage(data);
+    });
+}
+
+function create_page_window(data) {
+    const win = create_window('page-window');
+
+    const title = document.createElement('h1');
+    title.id = 'page-title'
+    title.classList = 'page-title';
+    title.innerText = 'Create new page';
+
+    const paragraph = document.createElement('p');
+    paragraph.id = 'page-paragraph';
+    paragraph.classList = 'page-paragraph';
+    paragraph.innerText = 'Please choose an endpoint for your new page. This will be the URL that users will visit to access your page. e.g. /about';
+
+    const endpoint = document.createElement('input');
+    endpoint.id = 'page-endpoint';
+    endpoint.classList = 'page-endpoint';
+    endpoint.placeholder = 'Endpoint (e.g. /about)';
+
+    const continue_button = document.createElement('button');
+    continue_button.id = 'page-continue';
+    continue_button.innerText = 'Continue';
+    continue_button.onclick = async () => {
+        create_page_editor(data, endpoint.value);
+    }
+
+    const back = document.createElement('button');
+    back.id = 'page-back';
+    back.innerText = 'Back';
+    back.onclick = () => {
+        page_manage(data);
+    }
+
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(endpoint);
+    win.appendChild(document.createElement('br'));
+    win.appendChild(document.createElement('br'));
+    win.appendChild(back);
+    win.appendChild(continue_button);
+}
+
+function manage_page(data, page) {
+    set_path('/admin/page/' + page);
+
+    const win = create_window('page-window');
+
+    const preview = document.createElement('iframe');
+    preview.id = 'page-preview';
+    preview.classList = 'page-preview';
+    preview.src = page;
+    preview.style.transform = 'scale(0.8)';
+    preview.style.transformOrigin = '0 0';
+    preview.style.width = '500px';
+    preview.style.height = '500px';
+
+    preview.onload = () => {
+        preview.contentWindow.document.getElementById('topBar').style.display = 'none';
+        preview.contentWindow.document.getElementById('footer').style.display = 'none';
+    }
+
+    const title = document.createElement('h1');
+    title.id = 'page-title';
+    title.innerHTML = 'Manage page ' + page;
+
+    const paragraph = document.createElement('p');
+    paragraph.id = 'page-paragraph';
+    paragraph.classList = 'page-paragraph';
+    paragraph.innerHTML = 'Manage your page here.';
+
+    const edit_button = document.createElement('button');
+    edit_button.id = 'page-edit';
+    edit_button.innerText = 'Edit page';
+    edit_button.onclick = async () => {
+        edit_page_window(data, page);
+    }
+
+    const delete_button = document.createElement('button');
+    delete_button.id = 'page-delete';
+    delete_button.innerText = 'Delete page';
+    delete_button.onclick = async () => {
+        delete_page_window(data, page);
+    }
+
+    win.appendChild(preview);
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(edit_button);
+    win.appendChild(delete_button);
+}
+
+async function page_manage(data) {
+    const win = create_window('page-window');
+
+    set_path('/admin/page');
+
+    async function get_pages() {
+        const api = "/api/get_hierarchy";
+        let list = [];
+
+        try {
+            const response = await fetch(api, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const json = await response.json();
+            for (const page in json) {
+                if (json[page].type === 'page') {
+                    list.push(page);
+                }
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+
+        return list;
+    }
+
+    const title = document.createElement('h1');
+    const paragraph = document.createElement('p');
+
+    title.innerHTML = 'Manage pages';
+    paragraph.innerHTML = 'Manage your web pages here.';
+
+    const table = document.createElement('table');
+    table.classList = 'page-table';
+
+    const create_page = document.createElement('button');
+    create_page.innerText = 'Create new page';
+    create_page.onclick = () => {
+        create_page_window(data);
+    }
+
+    function print_list(data, list) {
+        let to_delete = [];
+        while (table.firstChild) {
+            table.removeChild(table.firstChild);
+        }
+
+        if (list.length === 0) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.innerText = 'No pages found.';
+            row.appendChild(cell);
+            table.appendChild(row);
+            return;
+        }
+
+        const check_all = document.createElement('input');
+        check_all.type = 'checkbox';
+        check_all.id = 'page-all';
+        check_all.name = 'page-all';
+        check_all.checked = false;
+        check_all.onchange = () => {
+            const checks = document.getElementsByTagName('input');
+            for (let i = 0; i < checks.length; i++) {
+                if (checks[i].type === 'checkbox' && checks[i].id !== 'page-all') {
+                    checks[i].checked = check_all.checked;
+                }
+            }
+
+            to_delete = [];
+            if (check_all.checked) {
+                for (const page of list) {
+                    to_delete.push(page);
+                }
+            }
+        }
+
+        const check_all_label = document.createElement('label');
+        check_all_label.htmlFor = 'page-all';
+        check_all_label.innerText = 'Select all';
+
+        const check_all_cell = document.createElement('td');
+        check_all_cell.appendChild(check_all);
+        check_all_cell.appendChild(check_all_label);
+
+        const check_all_row = document.createElement('tr');
+        check_all_row.appendChild(check_all_cell);
+
+        const delete_checked = document.createElement('button');
+        delete_checked.innerText = 'Delete selected';
+        delete_checked.onclick = async () => {
+            if (to_delete.length === 0) {
+                return;
+            }
+
+            delete_page_window(data, to_delete);
+        }
+
+        check_all_row.appendChild(delete_checked);
+
+        table.appendChild(check_all_row);
+
+        for (const page of list) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+
+            const check = document.createElement('input');
+            check.type = 'checkbox';
+            check.id = 'page-' + page;
+            check.name = 'page-' + page;
+            check.checked = false;
+            check.onchange = () => {
+                // uncheck select all if all are not checked
+                const checks = document.getElementsByTagName('input');
+                let all_checked = true;
+                for (let i = 0; i < checks.length; i++) {
+                    if (checks[i].type === 'checkbox' && checks[i].id !== 'page-all' && checks[i].checked === false) {
+                        all_checked = false;
+                        break;
+                    }
+                }
+                check_all.checked = all_checked;
+
+                // add or remove from to_delete
+                if (check.checked) {
+                    to_delete.push(page);
+                } else {
+                    const index = to_delete.indexOf(page);
+                    if (index > -1) {
+                        to_delete.splice(index, 1);
+                    }
+                }
+            }
+            cell.appendChild(check);
+
+            const link = document.createElement('a');
+            link.onclick = () => {
+                manage_page(data, page);
+            }
+
+            link.innerText = page;
+
+            cell.appendChild(link);
+
+            const delete_button = document.createElement('button');
+            delete_button.innerText = 'Delete';
+            delete_button.onclick = async () => {
+                delete_page_window(data, [page]);
+            }
+
+            const edit_button = document.createElement('button');
+            edit_button.innerText = 'Edit';
+            edit_button.onclick = async () => {
+                edit_page_window(data, page);
+            }
+
+            cell.appendChild(edit_button);
+            cell.appendChild(delete_button);
+
+            row.appendChild(cell);
+            table.appendChild(row);
+        }
+    }
+
+    print_list(data, await get_pages());
+
+    const search = document.createElement('input');
+    search.placeholder = 'Search';
+    search.oninput = async () => {
+        const search_results = await get_pages();
+
+        // remove entries that don't match the search
+        for (let i = 0; i < search_results.length; i++) {
+            if (!search_results[i].includes(search.value)) {
+                search_results.splice(i, 1);
+                i--;
+            }
+        }
+
+        print_list(data, search_results);
+    }
+
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(create_page);
+    win.appendChild(document.createElement('br'));
+    win.appendChild(document.createElement('br'));
+    win.appendChild(search);
+    win.appendChild(document.createElement('br'));
+    win.appendChild(document.createElement('br'));
+    win.appendChild(table);
+}
+
+function file_manage(data) {
+    hide_all_windows();
+}
+
+function user_manage(data) {
+    hide_all_windows();
+}
+
+function server_manage(data) {
+    hide_all_windows();
+}
+
 function admin(data) {
+    const win = create_window('admin-window');
+
+    const title = document.createElement('h1');
+    const paragraph = document.createElement('p');
+
+    title.innerText = 'Admin panel';
+    title.classList = 'admin-title';
+    paragraph.innerText = 'Welcome to the admin panel.';
+
+    const page_management = document.createElement('button');
+    page_management.innerText = 'Page management';
+    page_management.onclick = () => {
+        page_manage(data);
+    }
+
+    const file_management = document.createElement('button');
+    file_management.innerText = 'File management';
+    file_management.onclick = () => {
+        file_manage(data);
+    }
+
+    const user_management = document.createElement('button');
+    user_management.innerText = 'User management';
+    user_management.onclick = () => {
+        user_manage(data);
+    }
+
+    const server_management = document.createElement('button');
+    server_management.innerText = 'Server management';
+    server_management.onclick = () => {
+        server_manage(data);
+    }
+
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(page_management);
+    win.appendChild(file_management);
+    win.appendChild(user_management);
+    win.appendChild(server_management);
 }
 
 function e404(data) {
@@ -648,6 +1242,14 @@ function e404(data) {
 
 async function load_page(path, data) {
     hide_all_windows();
+
+    const _content = document.getElementById('content');
+    if (_content) {
+        while (_content.firstChild) {
+            _content.removeChild(_content.firstChild);
+        }
+    }
+
     if (path === "/login" && get_cookie('username') === null) {
         login(data);
         return;
@@ -659,6 +1261,18 @@ async function load_page(path, data) {
         return;
     } else if (path === "/admin" && get_cookie('user_type') == 1) {
         admin(data);
+        return;
+    }
+
+    if (path === "/admin/page") {
+        page_manage(data);
+        return;
+    }
+
+    // /admin/page/...
+    if (path.includes('/admin/page/')) {
+        const page = path.split('/').pop();
+        manage_page(data, page);
         return;
     }
 
@@ -885,11 +1499,17 @@ window.addEventListener('load', function() {
     }
 
     function set_padding() {
+        if (!footer) {
+            return;
+        }
         const fh = footer.offsetHeight;
         body.style.paddingBottom = `${fh}px`;
     }
 
     function set_nav_bar_padding() {
+        if (!nav_bar) {
+            return;
+        }
         const nh = nav_bar.offsetHeight;
         body.style.paddingTop = `${nh}px`;
     }

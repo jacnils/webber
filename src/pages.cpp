@@ -490,10 +490,10 @@ limhamn::http::server::response webber::get_api_get_page(const limhamn::http::se
     if (json_requested) {
         if (!stat.first || stat.second.empty()) {
             response.http_status = 400;
-            nlohmann::json json;
-            json["error"] = "WEBBER_INVALID_CREDS";
-            json["error_str"] = "Invalid credentials.";
-            response.body = json.dump();
+            nlohmann::json response_json;
+            response_json["error"] = "WEBBER_INVALID_CREDS";
+            response_json["error_str"] = "Invalid credentials.";
+            response.body = response_json.dump();
             return response;
         }
 
@@ -524,6 +524,22 @@ limhamn::http::server::response webber::get_api_get_page(const limhamn::http::se
             { .ip_address = request.ip_address, .user_agent = request.user_agent, .username = stat.second},
             page, (json_requested && is_admin));
 
+        if (ret.require_login && !stat.first) {
+            response.http_status = 400;
+            nlohmann::json response_json;
+            response_json["error"] = "WEBBER_NOT_LOGGED_IN";
+            response_json["error_str"] = "Not logged in.";
+            response.body = response_json.dump();
+            return response;
+        }
+        if (ret.require_admin && (!stat.first || !is_admin)) {
+            response.http_status = 400;
+            nlohmann::json response_json;
+            response_json["error"] = "WEBBER_NOT_ADMIN";
+            response_json["error_str"] = "Not an administrator.";
+            response.body = response_json.dump();
+            return response;
+        }
         if (ret.json.empty() == false) {
             response.content_type = "application/json";
             response.http_status = 200;
@@ -539,6 +555,8 @@ limhamn::http::server::response webber::get_api_get_page(const limhamn::http::se
             if (!ret.output_content.empty()) response_json["output_content"] = ret.output_content;
             if (!ret.input_content_type.empty()) response_json["input_content_type"] = ret.input_content_type;
             if (!ret.output_content_type.empty()) response_json["output_content_type"] = ret.output_content_type;
+            response_json["require_login"] = ret.require_login;
+            response_json["require_admin"] = ret.require_admin;
 
             response.body = response_json.dump();
             return response;
@@ -623,6 +641,13 @@ limhamn::http::server::response webber::get_api_update_page(const limhamn::http:
         response.body = return_json.dump();
         return response;
     }
+    if (json.contains("require_admin") && json.at("require_admin").is_boolean() == true) {
+        c.require_admin = json.at("require_admin").get<bool>();
+    }
+    if (json.contains("require_login") && json.at("require_login").is_boolean() == true) {
+        c.require_login = json.at("require_login").get<bool>();
+    }
+
 
     try {
         update_page(db, c);
@@ -774,6 +799,12 @@ limhamn::http::server::response webber::get_api_create_page(const limhamn::http:
         return_json["error_str"] = "Content missing.";
         response.body = return_json.dump();
         return response;
+    }
+    if (json.contains("require_admin") && json.at("require_admin").is_boolean() == true) {
+        c.require_admin = json.at("require_admin").get<bool>();
+    }
+    if (json.contains("require_login") && json.at("require_login").is_boolean() == true) {
+        c.require_login = json.at("require_login").get<bool>();
     }
 
     try {
@@ -931,6 +962,257 @@ limhamn::http::server::response webber::get_api_delete_file(const limhamn::http:
     }
 
     remove_file(database, input_json.at("endpoint").get<std::string>());
+
+    return response;
+}
+
+limhamn::http::server::response webber::get_api_get_hierarchy(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+    bool is_admin{false};
+
+    const auto stat = is_logged_in(request, db);
+    if (stat.first) {
+        if (get_user_type(db, stat.second) == UserType::Administrator) {
+            is_admin = true;
+        }
+    }
+
+    std::vector<std::pair<bool, std::string>> entries;
+
+    const auto& file_list = db.query("SELECT * FROM files");
+    const auto& page_list = db.query("SELECT * FROM pages");
+
+    for (const auto& it : file_list) {
+        if (!it.contains("file_path")) {
+            continue;
+        }
+
+        try {
+            const auto json = nlohmann::json::parse(it.at("json"));
+            if (json.contains("require_admin") &&
+                json.at("require_admin").is_boolean() &&
+                json.at("require_admin").get<bool>() && !is_admin) {
+                continue;
+            }
+            if (json.contains("require_login") &&
+                json.at("require_login").is_boolean() &&
+                json.at("require_login").get<bool>() && !stat.first) {
+                continue;
+            }
+        } catch (const std::exception&) {
+            continue;
+        }
+
+        entries.emplace_back(true, it.at("file_path"));
+    }
+
+    for (const auto& it : page_list) {
+        if (!it.contains("location")) {
+            continue;
+        }
+
+        try {
+            const auto json = nlohmann::json::parse(it.at("json"));
+            if (json.contains("require_admin") &&
+                json.at("require_admin").is_boolean() &&
+                json.at("require_admin").get<bool>() && !is_admin) {
+                continue;
+            }
+            if (json.contains("require_login") &&
+                json.at("require_login").is_boolean() &&
+                json.at("require_login").get<bool>() && !stat.first) {
+                continue;
+            }
+        } catch (const std::exception&) {
+            continue;
+        }
+
+        entries.emplace_back(false, it.at("location"));
+    }
+
+    // sort vector by second element and alphabetically
+    std::ranges::sort(entries.begin(), entries.end(), [](const std::pair<bool, std::string>& a, const std::pair<bool, std::string>& b) {
+        if (a.first == b.first) {
+            return a.second < b.second;
+        }
+        return a.first;
+    });
+
+    nlohmann::json json;
+    for (const auto& it : entries) {
+        json[it.second]["type"] = it.first ? "file" : "page";
+    }
+
+    response.body = json.dump();
+    response.http_status = 200;
+
+    return response;
+}
+
+limhamn::http::server::response webber::get_api_get_logs(const limhamn::http::server::request& request, database& db) {
+    limhamn::http::server::response response{};
+
+    const auto stat = is_logged_in(request, db);
+    if (!stat.first || stat.second.empty()) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_INVALID_CREDS";
+        json["error_str"] = "Invalid credentials.";
+        response.body = json.dump();
+        return response;
+    }
+
+    if (get_user_type(db, stat.second) != UserType::Administrator) {
+        response.http_status = 400;
+        nlohmann::json json;
+        json["error"] = "WEBBER_NOT_ADMIN";
+        json["error_str"] = "Not an administrator.";
+        response.body = json.dump();
+        return response;
+    }
+
+    enum class direction {
+        up, // start from the top
+        down, // start from the bottom
+    };
+
+    struct settings {
+        bool get_errors{true};
+        bool get_warnings{true};
+        bool get_notices{true};
+        bool get_access{true};
+        int64_t backlog{100};
+        direction direction{direction::down};
+    };
+
+    settings s{};
+    response.content_type = "text/plain";
+
+    if (request.body.empty() == false) {
+        try {
+            const auto json = nlohmann::json::parse(request.body);
+
+            if (json.contains("get_errors") && json.at("get_errors").is_boolean()) {
+                s.get_errors = json.at("get_errors").get<bool>();
+            }
+            if (json.contains("get_warnings") && json.at("get_warnings").is_boolean()) {
+                s.get_warnings = json.at("get_warnings").get<bool>();
+            }
+            if (json.contains("get_notices") && json.at("get_notices").is_boolean()) {
+                s.get_notices = json.at("get_notices").get<bool>();
+            }
+            if (json.contains("get_access") && json.at("get_access").is_boolean()) {
+                s.get_access = json.at("get_access").get<bool>();
+            }
+            if (json.contains("backlog") && json.at("backlog").is_number_integer()) {
+                s.backlog = json.at("backlog").get<int64_t>();
+            }
+            if (json.contains("direction") && json.at("direction").is_string()) {
+                const std::string dir = json.at("direction").get<std::string>();
+                if (dir == "up") {
+                    s.direction = direction::up;
+                } else if (dir == "down") {
+                    s.direction = direction::down;
+                }
+            }
+        } catch (const std::exception&) {
+            response.http_status = 400;
+            nlohmann::json json;
+            json["error"] = "WEBBER_INVALID_JSON";
+            json["error_str"] = "Invalid JSON.";
+            response.body = json.dump();
+            return response;
+        }
+    }
+
+    for (const auto& it : {webber::settings.access_file, webber::settings.error_file, webber::settings.notice_file, webber::settings.warning_file}) {
+        if (!s.get_access && it == webber::settings.access_file) {
+            continue;
+        } else if (!s.get_errors && it == webber::settings.error_file) {
+            continue;
+        } else if (!s.get_notices && it == webber::settings.notice_file) {
+            continue;
+        } else if (!s.get_warnings && it == webber::settings.warning_file) {
+            continue;
+        }
+
+        std::ifstream file(it);
+        if (!file.is_open()) {
+            continue;
+        }
+
+        std::vector<std::string> lines;
+        std::string line;
+        while (std::getline(file, line)) {
+            lines.push_back(line);
+        }
+
+        if (s.direction == direction::down) {
+            std::ranges::reverse(lines);
+        }
+
+        int i{0};
+        for (const auto& l : lines) {
+            response.body += l + "\n";
+            ++i;
+            if (i >= s.backlog) {
+                break;
+            }
+        }
+
+        response.body += "\n";
+    }
+
+    const auto extract_numbers = [](const std::string& str) -> std::vector<int> {
+        std::vector<int> numbers;
+        std::stringstream ss(str);
+        std::string temp;
+        int found;
+        while (!ss.eof()) {
+            ss >> temp;
+            if (std::stringstream(temp) >> found) {
+                numbers.push_back(found);
+            }
+            temp = "";
+        }
+        return numbers;
+    };
+
+    const auto sort_string_numerically = [&extract_numbers](const std::string& string) -> std::string {
+        // split the string into lines
+        std::vector<std::string> strings;
+        std::stringstream ss(string);
+        std::string line;
+        while (std::getline(ss, line, '\n')) {
+            strings.push_back(line);
+        }
+
+        std::vector<std::pair<int, std::string>> numbered_strings;
+        for (const auto& str : strings) {
+            std::vector<int> numbers = extract_numbers(str);
+            if (!numbers.empty()) {
+                numbered_strings.emplace_back(numbers.front(), str);
+            }
+        }
+
+        std::sort(numbered_strings.begin(), numbered_strings.end(), [](const auto& a, const auto& b) {
+            return a.first < b.first;
+        });
+
+        std::vector<std::string> sorted_strings;
+        for (const auto& pair : numbered_strings) {
+            sorted_strings.push_back(pair.second);
+        }
+
+        std::string result;
+        for (const auto& str : sorted_strings) {
+            result += str + "\n";
+        }
+
+        return result;
+    };
+
+    response.body = sort_string_numerically(response.body);
 
     return response;
 }

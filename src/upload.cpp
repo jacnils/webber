@@ -72,6 +72,16 @@ webber::UploadStatus webber::upload_file(const limhamn::http::server::request& r
         file_name = std::filesystem::path(file_endpoint).filename().string();
     }
 
+    bool require_admin{false};
+    bool require_login{false};
+
+    if (recv_json.contains("require_admin") && recv_json.at("require_admin").is_boolean()) {
+        require_admin = recv_json.at("require_admin").get<bool>();
+    }
+    if (recv_json.contains("require_login") && recv_json.at("require_login").is_boolean()) {
+        require_login = recv_json.at("require_login").get<bool>();
+    }
+
     if (file_endpoint.front() != '/') {
         file_endpoint = "/" + file_endpoint;
     }
@@ -83,6 +93,8 @@ webber::UploadStatus webber::upload_file(const limhamn::http::server::request& r
         .username = stat.second,
         .ip_address = req.ip_address,
         .user_agent = req.user_agent,
+        .require_admin = require_admin,
+        .require_login = require_login,
     });
 
     return UploadStatus::Success;

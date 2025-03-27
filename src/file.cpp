@@ -23,6 +23,8 @@ std::string webber::upload_file(database& db, const webber::FileConstruct& c) {
     json["uploaded_at"] = scrypto::return_unix_timestamp();
     json["downloads"] = 0;
     json["downloaders"] = nlohmann::json::array(); /* combine username, ip address, user agent and timestamp */
+    json["require_admin"] = c.require_admin;
+    json["require_login"] = c.require_login;
 
     const auto check_for_dup = [](database& db, const std::string& key) -> bool {
         for (const auto& it : db.query("SELECT * FROM files WHERE file_path = ?;", key)) {
@@ -170,6 +172,8 @@ webber::RetrievedFile webber::download_file(database& db, const webber::UserProp
 
     f.name = json.at("filename").get<std::string>();
     f.path = json.at("path").get<std::string>();
+    if (json.contains("require_admin") && json.at("require_admin").is_boolean()) f.require_admin = json.at("require_admin").get<bool>();
+    if (json.contains("require_login") && json.at("require_login").is_boolean()) f.require_login = json.at("require_login").get<bool>();
 
     // reinsert into the files table
     if (!db.exec("UPDATE files SET json = ? WHERE file_path = ?;", json.dump(), file_path)) {

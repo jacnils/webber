@@ -105,6 +105,8 @@ namespace webber {
         std::string username{}; // username of the uploader
         std::string ip_address{}; // ip address of the uploader
         std::string user_agent{}; // user agent of the uploader
+        bool require_admin{false};
+        bool require_login{false};
     };
 
     struct PageConstruct {
@@ -114,6 +116,8 @@ namespace webber {
         std::string username{};
         std::string ip_address{};
         std::string user_agent{};
+        bool require_admin{false};
+        bool require_login{false};
     };
 
     struct RetrievedPage {
@@ -121,12 +125,16 @@ namespace webber {
         std::string output_content{};
         std::string input_content_type{};
         std::string output_content_type{};
+        bool require_admin{false};
+        bool require_login{false};
         std::string json{}; // only if requested and user is admin
     };
 
     struct RetrievedFile {
         std::string path{};
         std::string name{};
+        bool require_admin{false};
+        bool require_login{false};
     };
 
     struct UserProperties {
@@ -194,4 +202,6 @@ namespace webber {
     limhamn::http::server::response get_api_update_page(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_upload_file(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_api_delete_file(const limhamn::http::server::request&, database&);
+    limhamn::http::server::response get_api_get_hierarchy(const limhamn::http::server::request&, database&);
+    limhamn::http::server::response get_api_get_logs(const limhamn::http::server::request&, database&);
 }

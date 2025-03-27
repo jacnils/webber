@@ -94,6 +94,8 @@ void webber::server_init() { // NOLINT
                   {"/api/update_page", get_api_update_page},
                   {"/api/upload_file", get_api_upload_file},
                   {"/api/delete_file", get_api_delete_file},
+                  {"/api/get_hierarchy", get_api_get_hierarchy},
+                  {"/api/get_logs", get_api_get_logs},
               };
 
               // if setup needed, return setup page or setup api
@@ -125,12 +127,23 @@ void webber::server_init() { // NOLINT
                   }
               }
 
-              if (webber::is_file(*database, request.endpoint)) {
+              if (is_file(*database, request.endpoint)) {
                   const auto& h = webber::download_file(*database, webber::UserProperties{
                       .username = request.session.contains("username") ? request.session.at("username") : "",
                       .ip_address = request.ip_address,
                       .user_agent = request.user_agent,
                   }, request.endpoint);
+
+                  if (h.require_login || h.require_admin) {
+                      const auto login = is_logged_in(request, *database);
+                      if (!login.first || login.second.empty()) {
+                          goto r;
+                      }
+
+                      if (h.require_admin && get_user_type(*database, login.second) != UserType::Administrator) {
+                          goto r;
+                      }
+                  }
 
                   limhamn::http::server::response response{};
 
@@ -147,9 +160,9 @@ void webber::server_init() { // NOLINT
                   return response;
               }
 
-              // TODO: user specified paths
+              r:
 
-              // fallback is index, javascript will handle the rest, such as 404
+              // fallback is index, javascript will handle the rest, such as 404 and pages
               return get_index_page(request, *database);
           });
     } catch (const std::exception& e) {
@@ -438,6 +451,7 @@ void webber::prepare_wd() {
     const auto check_if_exists = [](const std::string& path) -> bool {
         return std::filesystem::exists(path);
     };
+#ifndef WEBBER_DEBUG
     const auto remove_all_in_directory = [&check_if_exists](const std::string& path) -> void {
         if (!check_if_exists(path)) {
             return;
@@ -450,6 +464,7 @@ void webber::prepare_wd() {
             std::filesystem::remove(entry.path());
         }
     };
+#endif
 
     if (!check_if_exists(webber::settings.session_directory)) {
         webber::logger.write_to_log(limhamn::logger::type::notice, "The session directory does not exist. Creating it.\n");

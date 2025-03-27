@@ -43,6 +43,8 @@ void webber::upload_page(database& db, const webber::PageConstruct& c) {
     json["input_content"] = content_type ? c.html_content : c.markdown_content;
     json["output_content"] = content_type ? c.html_content : parse_input(c.markdown_content);
     json["visitors"] = nlohmann::json::array(); /* combine username, ip address, user agent and timestamp */
+    json["require_admin"] = c.require_admin;
+    json["require_login"] = c.require_login;
 
     const auto check_for_dup = [](database& db, const std::string& key) -> bool {
         if (is_page(db, key)) {
@@ -158,20 +160,22 @@ void webber::update_page(database& db, const PageConstruct& c) {
     if (json.find("history") != json.end() && json.at("history").is_array()) {
         nlohmann::json history;
 
-        history["updated_at"] = json.at("updated_at");
-        history["replaced_at"] = scrypto::return_unix_timestamp();
-        history["username"] = json.at("username");
-        history["ip_address"] = json.at("ip_address");
-        history["user_agent"] = json.at("user_agent");
-        history["replaced_by_username"] = c.username;
-        history["replaced_by_ip_address"] = c.ip_address;
-        history["replaced_by_user_agent"] = c.user_agent;
-        history["input_content_type"] = json.at("input_content_type");
-        history["output_content_type"] = json.at("output_content_type");
-        history["input_content"] = json.at("input_content");
-        history["output_content"] = json.at("output_content");
-        history["visitors_at_the_time"] = json.at("visitors");
-        history["visits_at_the_time"] = json.at("visits");
+        if (json.contains("updated_at")) history["updated_at"] = json.at("updated_at");
+        if (json.contains("replaced_at")) history["replaced_at"] = scrypto::return_unix_timestamp();
+        if (json.contains("username")) history["username"] = json.at("username");
+        if (json.contains("ip_address")) history["ip_address"] = json.at("ip_address");
+        if (json.contains("user_agent")) history["user_agent"] = json.at("user_agent");
+        if (json.contains("replaced_by_username")) history["replaced_by_username"] = c.username;
+        if (json.contains("replaced_by_ip_address")) history["replaced_by_ip_address"] = c.ip_address;
+        if (json.contains("replaced_by_user_agent")) history["replaced_by_user_agent"] = c.user_agent;
+        if (json.contains("input_content_type")) history["input_content_type"] = json.at("input_content_type");
+        if (json.contains("output_content_type")) history["output_content_type"] = json.at("output_content_type");
+        if (json.contains("input_content")) history["input_content"] = json.at("input_content");
+        if (json.contains("output_content")) history["output_content"] = json.at("output_content");
+        if (json.contains("visitors_at_the_time")) history["visitors_at_the_time"] = json.at("visitors");
+        if (json.contains("visits_at_the_time")) history["visits_at_the_time"] = json.at("visits");
+        if (json.contains("require_admin")) history["require_admin"] = json.at("require_admin");
+        if (json.contains("require_login")) history["require_login"] = json.at("require_login");
 
         json["history"].push_back(history);
     }
@@ -181,6 +185,8 @@ void webber::update_page(database& db, const PageConstruct& c) {
     if (!c.user_agent.empty()) json["user_agent"] = c.user_agent;
 
     json["updated_at"] = scrypto::return_unix_timestamp();
+    json["require_admin"] = c.require_admin;
+    json["require_login"] = c.require_login;
 
     json["input_content_type"] = content_type ? "html" : "markdown";
     json["output_content_type"] = "html";
@@ -250,6 +256,9 @@ webber::RetrievedPage webber::download_page(database& db, const webber::UserProp
     p.input_content = json.at("input_content").get<std::string>();
     p.input_content_type = json.at("input_content_type").get<std::string>();
     p.output_content_type = json.at("output_content_type").get<std::string>();
+    if (json.contains("require_admin")) p.require_admin = json.at("require_admin").get<bool>();
+    if (json.contains("require_login")) p.require_login = json.at("require_login").get<bool>();
+
     if (get_json) {
         p.json = json.dump();
     }
