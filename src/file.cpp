@@ -27,6 +27,10 @@ std::string webber::upload_file(database& db, const webber::FileConstruct& c) {
     json["require_login"] = c.require_login;
 
     const auto check_for_dup = [](database& db, const std::string& key) -> bool {
+        if (is_page(db, key)) {
+            return true;
+        }
+
         for (const auto& it : db.query("SELECT * FROM files WHERE file_path = ?;", key)) {
             if (it.empty()) {
                 return false;
@@ -62,6 +66,10 @@ std::string webber::upload_file(database& db, const webber::FileConstruct& c) {
     }
 
     if (check_for_dup(db, c.virtual_path)) {
+#ifdef WEBBER_DEBUG
+        logger.write_to_log(limhamn::logger::type::error, "Duplicate file.\n");
+        logger.write_to_log(limhamn::logger::type::notice, "File path: " + c.virtual_path + "\n");
+#endif
         throw std::runtime_error{"Duplicate file."};
     }
 

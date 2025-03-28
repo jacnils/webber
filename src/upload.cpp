@@ -25,6 +25,7 @@ webber::UploadStatus webber::upload_file(const limhamn::http::server::request& r
 #endif
         } else {
             file_path = it.path;
+            file_name = it.filename;
             break;
         }
     }
@@ -68,8 +69,15 @@ webber::UploadStatus webber::upload_file(const limhamn::http::server::request& r
 
     if (recv_json.contains("name") && recv_json.at("name").is_string()) {
         file_name = recv_json.at("name").get<std::string>();
-    } else {
-        file_name = std::filesystem::path(file_endpoint).filename().string();
+    }
+
+    if (file_path.empty() || file_name.empty()) {
+#ifdef WEBBER_DEBUG
+        logger.write_to_log(limhamn::logger::type::error, "File path or name is empty.\n");
+        // write to log
+        logger.write_to_log(limhamn::logger::type::notice, "File path: " + file_path + ", File name: " + file_name + "\n");
+#endif
+        return UploadStatus::Failure;
     }
 
     bool require_admin{false};
@@ -86,16 +94,20 @@ webber::UploadStatus webber::upload_file(const limhamn::http::server::request& r
         file_endpoint = "/" + file_endpoint;
     }
 
-    upload_file(db, FileConstruct{
-        .virtual_path = file_endpoint,
-        .path = file_path,
-        .name = file_name,
-        .username = stat.second,
-        .ip_address = req.ip_address,
-        .user_agent = req.user_agent,
-        .require_admin = require_admin,
-        .require_login = require_login,
-    });
+    try {
+        upload_file(db, FileConstruct{
+            .virtual_path = file_endpoint,
+            .path = file_path,
+            .name = file_name,
+            .username = stat.second,
+            .ip_address = req.ip_address,
+            .user_agent = req.user_agent,
+            .require_admin = require_admin,
+            .require_login = require_login,
+        });
+    } catch (const std::exception&) {
+        return UploadStatus::Failure;
+    }
 
     return UploadStatus::Success;
 }

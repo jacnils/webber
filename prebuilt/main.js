@@ -2,7 +2,10 @@ function get_path() {
     return window.location.pathname;
 }
 
+let last_path = '';
+let last_path_page = '';
 function set_path(path) {
+    last_path = get_path();
     window.history.pushState({}, '', path);
 }
 
@@ -63,7 +66,12 @@ class WindowProperties {
                     close_on_click_outside = false,
                     close_on_escape = true,
                     remove_existing = true,
-                    function_on_close = null
+                    function_on_close = function() {
+                        if (last_path_page) {
+                            set_path(last_path_page);
+                            load_page(last_path_page);
+                        }
+                    }
                 } = {}) {
         this.close_button = close_button;
         this.moveable = moveable;
@@ -113,7 +121,6 @@ function create_window(id, prop = new WindowProperties()) {
             if (event.target === content) {
                 if (prop.function_on_close) {
                     prop.function_on_close();
-                    return;
                 }
                 hide_all_windows();
             }
@@ -124,7 +131,6 @@ function create_window(id, prop = new WindowProperties()) {
             if (event.key === 'Escape') {
                 if (prop.function_on_close) {
                     prop.function_on_close();
-                    return;
                 }
                 hide_all_windows();
             }
@@ -170,7 +176,6 @@ function create_window(id, prop = new WindowProperties()) {
         close.onclick = () => {
             if (prop.function_on_close) {
                 prop.function_on_close();
-                return;
             }
             hide_all_windows();
         }
@@ -636,7 +641,6 @@ async function delete_page(data, page) {
         });
 
         if (response.status === 204) {
-            page_manage(data);
             return;
         }
 
@@ -1168,8 +1172,403 @@ async function page_manage(data) {
     win.appendChild(table);
 }
 
-function file_manage(data) {
-    hide_all_windows();
+function upload_files(files, base_endpoint, is_public = true) {
+    const loading = create_window('loading-window', { close_button: false, moveable: false, remove_existing: true, close_on_escape: false, close_on_click_outside: false });
+
+    const title = document.createElement('h1');
+    title.innerHTML = 'Uploading...';
+
+    const paragraph = document.createElement('p');
+    paragraph.innerHTML = 'Please wait while we upload your files. This may take a few moments...';
+
+    loading.appendChild(title);
+    loading.appendChild(paragraph);
+
+    const url = '/api/upload_file';
+
+    for (const file of files) {
+        let json = {};
+        const form = new FormData();
+        let endpoint = base_endpoint;
+
+        if (files.length > 1) { // more than one file
+            endpoint += "/" + file.name;
+        }
+
+        // prevent multiple slashes
+        endpoint = endpoint.replace(/\/+/g, '/');
+
+        json.require_admin = !is_public;
+        json.endpoint = endpoint;
+
+        form.append('json', new Blob([JSON.stringify(json)], {type: 'application/json'}));
+        form.append('file', file);
+
+        fetch(url, {
+            method: 'POST',
+            body: form,
+        })
+            .then(response => {
+                if (response.status === 204) {
+                    return;
+                }
+
+                return response.json();
+            })
+            .then(json => {
+                if (json) {
+                    throw new Error('Invalid response from server: ' + JSON.stringify(json));
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    }
+}
+
+function upload_file_window(data) {
+    const win = create_window('upload-window');
+
+    const title = document.createElement('h1');
+    const paragraph = document.createElement('p');
+
+    title.innerHTML = 'Upload file';
+    title.id = 'upload-title';
+
+    paragraph.innerText = 'Upload a file here. If you select multiple files, the endpoint will be used as a directory, with the filename as the file name.';
+    paragraph.id = 'upload-paragraph';
+
+    const endpoint = document.createElement('input');
+    endpoint.id = 'upload-endpoint';
+    endpoint.placeholder = "Endpoint (e.g. '/files/myfile.txt')";
+
+    const public_check = document.createElement('input');
+    public_check.id = 'upload-public';
+    public_check.type = 'checkbox';
+    public_check.checked = true;
+
+    const public_label = document.createElement('label');
+    public_label.innerHTML = 'Public';
+    public_label.id = 'upload-public-label';
+
+    const upload = document.createElement('input');
+    upload.id = 'upload-file';
+    upload.type = 'file';
+    upload.multiple = true;
+
+    const button = document.createElement('button');
+    button.id = 'upload-button';
+    button.innerText = 'Upload';
+    button.onclick = () => {
+        if (upload.files.length === 0) {
+            return;
+        }
+        upload_files(upload.files, endpoint.value, public_check.checked);
+        file_manage(data);
+    }
+
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(endpoint);
+    win.appendChild(upload);
+    win.appendChild(public_label);
+    win.appendChild(public_check);
+    win.appendChild(button);
+}
+
+async function delete_file(data, file) {
+    const api = "/api/delete_file";
+    const send = { endpoint: file };
+
+    try {
+        const response = await fetch(api, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(send),
+        });
+
+        if (response.status === 204) {
+            return;
+        }
+
+        const json = await response.json();
+
+        if (json.error_str) {
+            console.error('Error:', json.error_str);
+            return;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function delete_file_window(data, files) {
+    const win = create_window('delete-window');
+
+    const title = document.createElement('h1');
+    title.id = 'delete-title';
+    title.classList = 'delete-title';
+    title.innerText = 'Delete file';
+
+    const paragraph = document.createElement('p');
+    paragraph.id = 'delete-paragraph';
+    paragraph.classList = 'delete-paragraph';
+    paragraph.innerText = 'Are you sure you want to delete the following file(s)?';
+
+    const list = document.createElement('ul');
+    list.id = 'delete-list';
+    list.classList = 'delete-list';
+    for (const file of files) {
+        const item = document.createElement('li');
+        item.innerText = file;
+        list.appendChild(item);
+    }
+
+    const button = document.createElement('button');
+    button.id = 'delete-button';
+    button.innerText = 'Delete';
+    button.onclick = async () => {
+        for (const file of files) {
+            await delete_file(data, file);
+        }
+
+        file_manage(data);
+    }
+
+    const cancel = document.createElement('button');
+    cancel.id = 'delete-cancel';
+    cancel.innerText = 'Cancel';
+    cancel.onclick = () => {
+        if (files.length === 1) {
+            manage_file(data, pages[0]);
+        } else {
+            file_manage(data);
+        }
+    }
+
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(list);
+    win.appendChild(button);
+    win.appendChild(cancel);
+}
+
+function manage_file(data, file) {
+    set_path('/admin/file/' + file);
+
+    const win = create_window('file-window');
+
+    const title = document.createElement('h1');
+    title.id = 'file-title';
+    title.innerHTML = 'Manage file ' + file;
+
+    const paragraph = document.createElement('p');
+    paragraph.id = 'file-paragraph';
+    paragraph.classList = 'file-paragraph';
+    paragraph.innerHTML = 'Manage your file here.';
+
+    const delete_button = document.createElement('button');
+    delete_button.id = 'file-delete';
+    delete_button.innerText = 'Delete file';
+    delete_button.onclick = async () => {
+        delete_page_window(data, file);
+    }
+
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(delete_button);
+}
+
+// pretty much the same as the page management at first glance
+// in fact, i'll copy paste pretty much half the function
+async function file_manage(data) {
+    async function get_files() {
+        const api = "/api/get_hierarchy";
+        let list = [];
+
+        try {
+            const response = await fetch(api, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const json = await response.json();
+            for (const file in json) {
+                if (json[file].type === 'file') {
+                    list.push(file);
+                }
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+
+        return list;
+    }
+
+    set_path('/admin/file');
+
+    const win = create_window('file-window');
+
+    const title = document.createElement('h1');
+    const paragraph = document.createElement('p');
+
+    title.innerHTML = 'Manage files';
+    paragraph.innerHTML = 'Manage your files here.';
+
+    const table = document.createElement('table');
+    table.classList = 'file-table';
+
+    const upload_file = document.createElement('button');
+    upload_file.innerText = 'Upload new file';
+    upload_file.onclick = () => {
+        upload_file_window(data);
+    }
+
+    function print_list(data, list) {
+        let to_delete = [];
+        while (table.firstChild) {
+            table.removeChild(table.firstChild);
+        }
+
+        if (list.length === 0) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.innerText = 'No files found.';
+            row.appendChild(cell);
+            table.appendChild(row);
+            return;
+        }
+
+        const check_all = document.createElement('input');
+        check_all.type = 'checkbox';
+        check_all.id = 'file-all';
+        check_all.name = 'file-all';
+        check_all.checked = false;
+        check_all.onchange = () => {
+            const checks = document.getElementsByTagName('input');
+            for (let i = 0; i < checks.length; i++) {
+                if (checks[i].type === 'checkbox' && checks[i].id !== 'file-all') {
+                    checks[i].checked = check_all.checked;
+                }
+            }
+
+            to_delete = [];
+            if (check_all.checked) {
+                for (const file of list) {
+                    to_delete.push(file);
+                }
+            }
+        }
+
+        const check_all_label = document.createElement('label');
+        check_all_label.htmlFor = 'file-all';
+        check_all_label.innerText = 'Select all';
+
+        const check_all_cell = document.createElement('td');
+        check_all_cell.appendChild(check_all);
+        check_all_cell.appendChild(check_all_label);
+
+        const check_all_row = document.createElement('tr');
+        check_all_row.appendChild(check_all_cell);
+
+        const delete_checked = document.createElement('button');
+        delete_checked.innerText = 'Delete selected';
+        delete_checked.onclick = async () => {
+            if (to_delete.length === 0) {
+                return;
+            }
+
+            delete_file_window(data, to_delete);
+        }
+
+        check_all_row.appendChild(delete_checked);
+
+        table.appendChild(check_all_row);
+
+        for (const file of list) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+
+            const check = document.createElement('input');
+            check.type = 'checkbox';
+            check.id = 'file-' + file;
+            check.name = 'file-' + file;
+            check.checked = false;
+            check.onchange = () => {
+                const checks = document.getElementsByTagName('input');
+                let all_checked = true;
+                for (let i = 0; i < checks.length; i++) {
+                    if (checks[i].type === 'checkbox' && checks[i].id !== 'file-all' && checks[i].checked === false) {
+                        all_checked = false;
+                        break;
+                    }
+                }
+                check_all.checked = all_checked;
+
+                // add or remove from to_delete
+                if (check.checked) {
+                    to_delete.push(file);
+                } else {
+                    const index = to_delete.indexOf(file);
+                    if (index > -1) {
+                        to_delete.splice(index, 1);
+                    }
+                }
+            }
+            cell.appendChild(check);
+
+            const link = document.createElement('a');
+            link.onclick = () => {
+                manage_file(data, file);
+            }
+
+            link.innerText = file;
+
+            cell.appendChild(link);
+
+            const delete_button = document.createElement('button');
+            delete_button.innerText = 'Delete';
+            delete_button.onclick = async () => {
+                delete_file_window(data, [file]);
+            }
+
+            cell.appendChild(delete_button);
+
+            row.appendChild(cell);
+            table.appendChild(row);
+        }
+    }
+
+    print_list(data, await get_files());
+
+    const search = document.createElement('input');
+    search.placeholder = 'Search';
+    search.oninput = async () => {
+        const search_results = await get_files();
+
+        // remove entries that don't match the search
+        for (let i = 0; i < search_results.length; i++) {
+            if (!search_results[i].includes(search.value)) {
+                search_results.splice(i, 1);
+                i--;
+            }
+        }
+
+        print_list(data, search_results);
+    }
+
+    win.appendChild(title);
+    win.appendChild(paragraph);
+    win.appendChild(upload_file);
+    win.appendChild(document.createElement('br'));
+    win.appendChild(document.createElement('br'));
+    win.appendChild(search);
+    win.appendChild(document.createElement('br'));
+    win.appendChild(document.createElement('br'));
+    win.appendChild(table);
 }
 
 function user_manage(data) {
@@ -1243,29 +1642,36 @@ function e404(data) {
 async function load_page(path, data) {
     hide_all_windows();
 
-    const _content = document.getElementById('content');
-    if (_content) {
-        while (_content.firstChild) {
-            _content.removeChild(_content.firstChild);
-        }
+    if (path === last_path_page) {
+        return; // no need to reload the same crap
     }
 
     if (path === "/login" && get_cookie('username') === null) {
         login(data);
+        reinitialize_content();
         return;
     } else if (path === "/logout") {
         logout(data);
+        reinitialize_content();
         return;
     } else if (path === "/register") {
         register(data);
+        reinitialize_content();
         return;
     } else if (path === "/admin" && get_cookie('user_type') == 1) {
         admin(data);
+        reinitialize_content();
         return;
     }
 
     if (path === "/admin/page") {
         page_manage(data);
+        reinitialize_content();
+        return;
+    }
+    if (path === "/admin/file") {
+        file_manage(data);
+        reinitialize_content();
         return;
     }
 
@@ -1273,7 +1679,23 @@ async function load_page(path, data) {
     if (path.includes('/admin/page/')) {
         const page = path.split('/').pop();
         manage_page(data, page);
+        reinitialize_content();
         return;
+    } else if (path.includes('/admin/file/')) {
+        const file = path.split('/').pop();
+        manage_file(data, file);
+        reinitialize_content();
+        return;
+    }
+
+    last_path_page = path;
+
+    // do not move me up please
+    const _content = document.getElementById('content');
+    if (_content) {
+        while (_content.firstChild) {
+            _content.removeChild(_content.firstChild);
+        }
     }
 
     async function fetch_page(path) {
@@ -1309,7 +1731,7 @@ async function load_page(path, data) {
 
             return json.output_content;
         } catch (error) {
-            console.error('Fetch error:', error);
+            // could log here if needed for debug
             return undefined;
         }
     }
@@ -1318,10 +1740,54 @@ async function load_page(path, data) {
     if (content !== undefined && content !== null) {
         const div = document.getElementById('content');
         div.innerHTML += content;
+
+        /* replace all links with onclick events to load_page
+         * if they're already onclick, ignore
+         */
+        const links = document.getElementsByTagName('a');
+        for (const link of links) {
+            if (link.onclick === null) {
+                link.onclick = (event) => {
+                    event.preventDefault();
+                    set_path(link.pathname);
+                    load_page(link.pathname, data);
+                }
+            }
+        }
+
+        /* find title in div and set it as the document title
+         * then remove it from the content
+         */
+        const title = div.getElementsByTagName('title');
+        if (title.length > 0) {
+            document.title = title[title.length-1].innerText;
+            title[title.length-1].remove();
+        }
+
+        /* same for meta tags */
+        const meta = div.getElementsByTagName('meta');
+        for (const tag of meta) {
+            // remove existing from header
+            const existing = document.querySelector('meta[name="' + tag.getAttribute('name') + '"]');
+            if (existing) {
+                existing.remove();
+            }
+
+            // add to header
+            document.head.appendChild(tag);
+        }
+
+        reinitialize_content();
         return;
     } else {
+        // external website
+        if (path.includes("https://") || path.includes("http://")) {
+            window.location = path;
+            return;
+        }
         // no?
         // 404
+        reinitialize_content();
         return e404(data);
     }
 }
@@ -1432,22 +1898,22 @@ function set_defaults(data) {
     document.title = data.default_site.title;
 
     const meta_description = document.createElement('meta');
-    meta_description.name = 'description';
+    meta_description.setAttribute('name', 'description');
     meta_description.content = data.default_site.description;
     document.head.appendChild(meta_description);
 
     const meta_keywords = document.createElement('meta');
-    meta_keywords.name = 'keywords';
+    meta_keywords.setAttribute('name', 'keywords');
     meta_keywords.content = data.default_site.keywords;
     document.head.appendChild(meta_keywords);
 
     const meta_author = document.createElement('meta');
-    meta_author.name = 'author';
+    meta_author.setAttribute('name', 'author');
     meta_author.content = data.default_site.author;
     document.head.appendChild(meta_author);
 
     const meta_viewport = document.createElement('meta');
-    meta_viewport.name = 'viewport';
+    meta_viewport.setAttribute('name', 'viewport');
     meta_viewport.content = data.default_site.viewport;
     document.head.appendChild(meta_viewport);
 
@@ -1458,23 +1924,23 @@ function set_defaults(data) {
     if (data.default_site.enable_opengraph !== undefined && data.default_site.enable_opengraph) {
         // Open Graph
         const meta_og_title = document.createElement('meta');
-        meta_og_title.property = 'og:title';
-        meta_og_title.content = data.default_site.title;
+        meta_og_title.setAttribute('property', 'og:title');
+        meta_og_title.setAttribute('content', data.default_site.title);
         document.head.appendChild(meta_og_title);
 
         const meta_og_description = document.createElement('meta');
-        meta_og_description.property = 'og:description';
-        meta_og_description.content = data.default_site.description;
+        meta_og_description.setAttribute('property', 'og:description');
+        meta_og_description.setAttribute('content', data.default_site.description);
         document.head.appendChild(meta_og_description);
 
         const meta_og_type = document.createElement('meta');
-        meta_og_type.property = 'og:type';
-        meta_og_type.content = 'website';
+        meta_og_type.setAttribute('property', 'og:type');
+        meta_og_type.setAttribute('content', 'website');
         document.head.appendChild(meta_og_type);
 
         const meta_og_url = document.createElement('meta');
-        meta_og_url.property = 'og:url';
-        meta_og_url.content = window.location.href;
+        meta_og_url.setAttribute('property', 'og:url');
+        meta_og_url.setAttribute('content', window.location.href);
         document.head.appendChild(meta_og_url);
     }
 
@@ -1489,7 +1955,7 @@ function set_defaults(data) {
     document.head.appendChild(css);
 }
 
-window.addEventListener('load', function() {
+function reinitialize_content() {
     const footer = document.querySelector('footer');
     const body = document.body;
     const nav_bar = document.querySelector('.top-bar');
@@ -1535,6 +2001,10 @@ window.addEventListener('load', function() {
             footer.classList.remove('visible');
         }
     });
+}
+
+window.addEventListener('load', function() {
+    reinitialize_content();
 });
 
 function main(data) {

@@ -186,6 +186,8 @@ namespace webber {
 
     std::pair<bool, std::string> is_logged_in(const limhamn::http::server::request&, database&, const std::string& = "");
 
+    std::string markdown_to_html(const std::string& markdown);
+
     limhamn::http::server::response get_stylesheet(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_script(const limhamn::http::server::request&, database&);
     limhamn::http::server::response get_index_page(const limhamn::http::server::request&, database&);

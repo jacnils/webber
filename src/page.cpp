@@ -25,12 +25,6 @@ void webber::upload_page(database& db, const webber::PageConstruct& c) {
         throw std::runtime_error{"Content is empty."};
     }
 
-    const auto parse_input = [](const std::string& input) -> std::string {
-        maddy::Parser parser;
-        std::istringstream stream{input};
-        return parser.Parse(stream);
-    };
-
     nlohmann::json json;
     json["username"] = c.username;
     json["ip_address"] = c.ip_address;
@@ -41,7 +35,7 @@ void webber::upload_page(database& db, const webber::PageConstruct& c) {
     json["output_content_type"] = "html";
     json["history"] = nlohmann::json::array();
     json["input_content"] = content_type ? c.html_content : c.markdown_content;
-    json["output_content"] = content_type ? c.html_content : parse_input(c.markdown_content);
+    json["output_content"] = content_type ? c.html_content : markdown_to_html(c.markdown_content);
     json["visitors"] = nlohmann::json::array(); /* combine username, ip address, user agent and timestamp */
     json["require_admin"] = c.require_admin;
     json["require_login"] = c.require_login;
@@ -150,12 +144,6 @@ void webber::update_page(database& db, const PageConstruct& c) {
         throw std::runtime_error{"Content is empty."};
     }
 
-    const auto parse_input = [](const std::string& input) -> std::string {
-        maddy::Parser parser;
-        std::istringstream stream{input};
-        return parser.Parse(stream);
-    };
-
     // populate history
     if (json.find("history") != json.end() && json.at("history").is_array()) {
         nlohmann::json history;
@@ -191,7 +179,7 @@ void webber::update_page(database& db, const PageConstruct& c) {
     json["input_content_type"] = content_type ? "html" : "markdown";
     json["output_content_type"] = "html";
     json["input_content"] = content_type ? c.html_content : c.markdown_content;
-    json["output_content"] = content_type ? c.html_content : parse_input(c.markdown_content);
+    json["output_content"] = content_type ? c.html_content : markdown_to_html(c.markdown_content);
 
     if (!db.exec("UPDATE pages SET json = ? WHERE location = ?;", json.dump(), c.virtual_path)) {
         throw std::runtime_error{"Error updating the pages table."};
@@ -268,4 +256,36 @@ webber::RetrievedPage webber::download_page(database& db, const webber::UserProp
     }
 
     return p;
+}
+
+std::string webber::markdown_to_html(const std::string& markdown) {
+    maddy::Parser parser;
+
+    /* preprocessor list:
+     *
+     * {{meta.title=...}}
+     * {{meta.description=...}}
+     * {{meta.keywords=...}}
+     * ...
+     * {{script[...]}}
+     * {{style[...]}}
+     * ...
+     * {{include[...]}}
+     * ...
+     * {{window.redirect=...}}
+     * ...
+     * {{template.spoiler[...]}}
+     * ...
+     * {{if(x)[...]}}
+     * {{else[...]}}
+     * {{else_if(x)[...]}}
+     *
+     * x - javascript to execute. if it returns true, the ... is to be included
+     * ... - HTML
+     *
+     * TODO: implement
+     */
+
+    std::istringstream stream{markdown};
+    return parser.Parse(stream);
 }
