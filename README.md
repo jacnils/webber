@@ -19,6 +19,4 @@ Dynamic website generator written in JavaScript (frontend) and C++ (backend).
 
 ## Licensing
 
-See LICENSE for more information. webber is not open source software. Dependencies are subject to their own licenses.
-
-Copyright (C) 2025 Jacob Nilsson <contact@jacobnilsson.com>
+This project is licensed under the MIT license. See the included LICENSE file for details.
